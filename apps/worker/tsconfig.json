@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "declaration": true,
+    "baseUrl": ".",
+    "esModuleInterop": true,
+    "composite": false,
+    "emitDeclarationOnly": false,
+    "noEmit": true,
+    "noUnusedLocals": false,
+    "rootDir": "../..",
+    "types": ["node"],
+    "paths": {
+      "@clipflow/shared": ["../../libs/shared/src/index.ts"],
+      "@clipflow/db": ["../../libs/db/src/index.ts"],
+      "@clipflow/video-processing": ["../../libs/video-processing/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    {
+      "path": "../../libs/db"
+    },
+    {
+      "path": "../../libs/shared"
+    }
+  ]
+}

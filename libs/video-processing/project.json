@@ -1,0 +1,7 @@
+{
+  "name": "video-processing",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/video-processing/src",
+  "projectType": "library",
+  "tags": []
+}

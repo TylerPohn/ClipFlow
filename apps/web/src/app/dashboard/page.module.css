@@ -1,0 +1,64 @@
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.importBtn {
+  display: inline-block;
+  padding: 0.625rem 1.25rem;
+  background-color: var(--accent);
+  color: white;
+  border-radius: var(--radius);
+  font-weight: 500;
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+
+.importBtn:hover {
+  background-color: var(--accent-hover);
+  color: white;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
+.loading {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 4rem 0;
+}
+
+.error {
+  text-align: center;
+  color: var(--error);
+  padding: 2rem;
+  background-color: rgba(239, 68, 68, 0.1);
+  border-radius: var(--radius);
+}
+
+.empty {
+  text-align: center;
+  padding: 4rem 0;
+  color: var(--text-secondary);
+}
+
+.empty p {
+  margin-bottom: 1.5rem;
+}

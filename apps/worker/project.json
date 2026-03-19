@@ -1,0 +1,23 @@
+{
+  "name": "worker",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/worker/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/worker",
+        "main": "apps/worker/src/main.ts",
+        "tsConfig": "apps/worker/tsconfig.json"
+      }
+    },
+    "dev": {
+      "command": "tsx watch src/main.ts",
+      "options": {
+        "cwd": "apps/worker"
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "declaration": true,
+    "composite": true,
+    "baseUrl": ".",
+    "esModuleInterop": true,
+    "paths": {
+      "@clipflow/shared": ["../shared/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}
