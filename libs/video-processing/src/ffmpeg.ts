@@ -1,8 +1,5 @@
 import ffmpeg from 'fluent-ffmpeg';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-
-const execFileAsync = promisify(execFile);
+import { spawn } from 'child_process';
 
 export interface ProcessVideoOptions {
   inputPath: string;
@@ -161,11 +158,27 @@ export async function processVideoVertical(
 
   console.log('ffmpeg args:', args.join(' '));
 
-  try {
-    await execFileAsync('ffmpeg', args, { maxBuffer: 10 * 1024 * 1024 });
-  } catch (error: unknown) {
-    const err = error as { stderr?: string; message: string };
-    const lastLines = (err.stderr || '').split('\n').slice(-10).join('\n');
-    throw new Error(`ffmpeg exited with error: ${lastLines}`);
-  }
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn('ffmpeg', args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stderr = '';
+    proc.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString();
+    });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        const lastLines = stderr.split('\n').slice(-10).join('\n');
+        reject(new Error(`ffmpeg exited with code ${code}: ${lastLines}`));
+      }
+    });
+
+    proc.on('error', (err) => {
+      reject(err);
+    });
+  });
 }
