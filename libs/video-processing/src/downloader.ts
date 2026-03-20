@@ -3,6 +3,8 @@ import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
 
+const YT_DLP = process.env.YT_DLP_PATH || 'yt-dlp';
+
 export interface DownloadOptions {
   url: string;
   outputPath: string;
@@ -32,7 +34,7 @@ export async function downloadVideo(
     args.push('-f', format);
   }
 
-  await execFileAsync('yt-dlp', args);
+  await execFileAsync(YT_DLP, args);
 
   // Read info JSON for metadata
   const infoPath = outputPath.replace(/\.[^.]+$/, '.info.json');
