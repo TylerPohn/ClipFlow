@@ -1,5 +1,6 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { readFile } from 'fs/promises';
 
 const execFileAsync = promisify(execFile);
 
@@ -28,6 +29,8 @@ export async function downloadVideo(
     outputPath,
     '--write-info-json',
     '--no-playlist',
+    '--merge-output-format',
+    'mp4',
   ];
 
   if (format) {
@@ -36,10 +39,10 @@ export async function downloadVideo(
 
   await execFileAsync(YT_DLP, args);
 
-  // Read info JSON for metadata
-  const infoPath = outputPath.replace(/\.[^.]+$/, '.info.json');
-  const { stdout } = await execFileAsync('cat', [infoPath]);
-  const info = JSON.parse(stdout);
+  // yt-dlp writes info JSON as <outputPath>.info.json (appended to full path)
+  const infoPath = `${outputPath}.info.json`;
+  const infoData = await readFile(infoPath, 'utf-8');
+  const info = JSON.parse(infoData);
 
   return {
     filePath: outputPath,
