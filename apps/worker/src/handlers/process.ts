@@ -46,6 +46,10 @@ export async function handleProcess(job: Job<VideoJob>): Promise<void> {
     const rawPath = path.join(tmpDir, 'raw.mp4');
     await downloadFile(S3_BUCKETS.RAW, video.rawStorageKey, rawPath);
 
+    const { stat } = await import('fs/promises');
+    const fileStat = await stat(rawPath);
+    console.log(`Downloaded raw file: ${rawPath} (${fileStat.size} bytes)`);
+
     await job.updateProgress(30);
 
     // 3. Process video: convert to 1080x1920 (9:16 vertical), with optional trim
@@ -58,8 +62,6 @@ export async function handleProcess(job: Job<VideoJob>): Promise<void> {
       outputPath: processedPath,
       width: 1080,
       height: 1920,
-      startTime: startTime,
-      endTime: endTime,
     });
 
     await job.updateProgress(60);
