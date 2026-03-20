@@ -39,8 +39,8 @@ export async function downloadVideo(
 
   await execFileAsync(YT_DLP, args);
 
-  // yt-dlp writes info JSON as <outputPath>.info.json (appended to full path)
-  const infoPath = `${outputPath}.info.json`;
+  // yt-dlp writes info JSON alongside the output file
+  const infoPath = outputPath.replace(/\.[^.]+$/, '.info.json');
   const infoData = await readFile(infoPath, 'utf-8');
   const info = JSON.parse(infoData);
 
