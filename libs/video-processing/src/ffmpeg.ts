@@ -163,23 +163,19 @@ export async function processVideoVertical(
     outputPath
   );
 
-  console.log('ffmpeg args:', args.join(' '));
-
-  // Run ffmpeg via bash with stderr captured to a fixed location
-  const stderrLog = '/tmp/clipflow-ffmpeg-debug.log';
-  const cmdLine = `ffmpeg ${args.map(a => "'" + a + "'").join(' ')} 2>${stderrLog}`;
-  console.log('Running:', cmdLine);
+  // Run ffmpeg via bash with stderr redirected to avoid Node.js pipe issues
+  const cmdLine = `ffmpeg ${args.map(a => "'" + a + "'").join(' ')} 2>&1`;
 
   try {
     execFileSync('bash', ['-c', cmdLine], {
       maxBuffer: 50 * 1024 * 1024,
-      timeout: 120000,
+      timeout: 300000,
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
-  } catch {
-    const { readFileSync } = await import('fs');
-    let stderr = '';
-    try { stderr = readFileSync(stderrLog, 'utf-8'); } catch {}
-    const lastLines = stderr.split('\n').slice(-15).join('\n');
+  } catch (error: unknown) {
+    const err = error as { stdout?: Buffer };
+    const output = err.stdout?.toString() || '';
+    const lastLines = output.split('\n').slice(-10).join('\n');
     throw new Error(`ffmpeg failed: ${lastLines}`);
   }
 }
