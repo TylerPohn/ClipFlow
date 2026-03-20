@@ -117,11 +117,11 @@ export async function processVideoVertical(
 
   if (srcAspect > targetAspect) {
     // Source is wider than target: scale by height, crop width
-    filters.push(`scale=-1:${height}`);
+    filters.push(`scale=-2:${height}`);
     filters.push(`crop=${width}:${height}`);
   } else {
     // Source is taller or same: scale by width, crop height
-    filters.push(`scale=${width}:-1`);
+    filters.push(`scale=${width}:-2`);
     filters.push(`crop=${width}:${height}`);
   }
 
