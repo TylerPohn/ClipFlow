@@ -55,6 +55,9 @@ export default function VideoDetailPage() {
   const [captionStyle, setCaptionStyle] = useState('white_outline');
   const [processing, setProcessing] = useState(false);
 
+  // TikTok connection
+  const [tiktokConnected, setTiktokConnected] = useState<boolean | null>(null);
+
   // Publish options
   const [caption, setCaption] = useState('');
   const [hashtags, setHashtags] = useState('');
@@ -83,6 +86,22 @@ export default function VideoDetailPage() {
   useEffect(() => {
     fetchVideo();
   }, [fetchVideo]);
+
+  // Check TikTok connection
+  useEffect(() => {
+    async function checkTikTok() {
+      try {
+        const res = await fetch('/api/accounts/tiktok');
+        if (res.ok) {
+          const data = await res.json();
+          setTiktokConnected(data.connected);
+        }
+      } catch {
+        setTiktokConnected(false);
+      }
+    }
+    checkTikTok();
+  }, []);
 
   // Poll while processing/downloading
   useEffect(() => {
@@ -159,7 +178,7 @@ export default function VideoDetailPage() {
       const res = await fetch(`/api/videos/${id}/publish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ caption, hashtags: hashtagList }),
+        body: JSON.stringify({ platform: 'TIKTOK', caption, hashtags: hashtagList }),
       });
 
       if (!res.ok) {
@@ -315,43 +334,68 @@ export default function VideoDetailPage() {
           <div className={styles.card}>
             <h2 className={styles.sectionTitle}>Publish to TikTok</h2>
 
-            <div className={styles.field}>
-              <label>Caption</label>
-              <textarea
-                rows={3}
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                placeholder="Write a caption for your TikTok..."
-                className={styles.textarea}
-              />
-            </div>
-
-            <div className={styles.field} style={{ marginTop: '0.75rem' }}>
-              <label>Hashtags (comma separated)</label>
-              <input
-                type="text"
-                value={hashtags}
-                onChange={(e) => setHashtags(e.target.value)}
-                placeholder="viral, fyp, clips"
-              />
-            </div>
-
-            <button
-              className="btn-primary"
-              style={{ marginTop: '1rem', width: '100%' }}
-              onClick={handlePublish}
-              disabled={publishing || video.status !== 'READY'}
-            >
-              {publishing ? 'Publishing...' : 'Post to TikTok'}
-            </button>
-
-            {publishError && <p className={styles.errorText}>{publishError}</p>}
-
-            {post && (
-              <div className={styles.postStatus}>
-                <span className={styles.postLabel}>Post Status:</span>
-                <StatusBadge status={post.status} />
+            {tiktokConnected === false && (
+              <div className={styles.connectPrompt}>
+                <p>Connect your TikTok account to publish videos.</p>
+                <button
+                  className="btn-primary"
+                  style={{ width: '100%' }}
+                  onClick={() => {
+                    window.location.href = `/api/auth/tiktok/link?returnTo=${encodeURIComponent(window.location.pathname)}`;
+                  }}
+                >
+                  Connect TikTok
+                </button>
               </div>
+            )}
+
+            {tiktokConnected === true && (
+              <>
+                <div className={styles.connectedBadge}>TikTok connected</div>
+
+                <div className={styles.field}>
+                  <label>Caption</label>
+                  <textarea
+                    rows={3}
+                    value={caption}
+                    onChange={(e) => setCaption(e.target.value)}
+                    placeholder="Write a caption for your TikTok..."
+                    className={styles.textarea}
+                  />
+                </div>
+
+                <div className={styles.field} style={{ marginTop: '0.75rem' }}>
+                  <label>Hashtags (comma separated)</label>
+                  <input
+                    type="text"
+                    value={hashtags}
+                    onChange={(e) => setHashtags(e.target.value)}
+                    placeholder="viral, fyp, clips"
+                  />
+                </div>
+
+                <button
+                  className="btn-primary"
+                  style={{ marginTop: '1rem', width: '100%' }}
+                  onClick={handlePublish}
+                  disabled={publishing || video.status !== 'READY'}
+                >
+                  {publishing ? 'Publishing...' : 'Post to TikTok'}
+                </button>
+
+                {publishError && <p className={styles.errorText}>{publishError}</p>}
+
+                {post && (
+                  <div className={styles.postStatus}>
+                    <span className={styles.postLabel}>Post Status:</span>
+                    <StatusBadge status={post.status} />
+                  </div>
+                )}
+              </>
+            )}
+
+            {tiktokConnected === null && (
+              <p className={styles.loadingText}>Checking connection...</p>
             )}
           </div>
         </div>

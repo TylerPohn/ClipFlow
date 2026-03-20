@@ -11,30 +11,7 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GITHUB_ID ?? '',
       clientSecret: process.env.GITHUB_SECRET ?? '',
     }),
-    {
-      id: 'tiktok',
-      name: 'TikTok',
-      type: 'oauth',
-      clientId: process.env.TIKTOK_CLIENT_KEY,
-      clientSecret: process.env.TIKTOK_CLIENT_SECRET,
-      authorization: {
-        url: 'https://www.tiktok.com/v2/auth/authorize/',
-        params: {
-          scope: 'user.info.basic,video.publish',
-          response_type: 'code',
-        },
-      },
-      token: 'https://open.tiktokapis.com/v2/oauth/token/',
-      userinfo: 'https://open.tiktokapis.com/v2/user/info/',
-      profile(profile) {
-        return {
-          id: profile.data?.user?.open_id ?? profile.open_id ?? profile.id,
-          name: profile.data?.user?.display_name ?? profile.display_name ?? profile.name,
-          email: profile.data?.user?.email ?? profile.email ?? null,
-          image: profile.data?.user?.avatar_url ?? profile.avatar_url ?? null,
-        };
-      },
-    },
+    // TikTok is linked via custom /api/auth/tiktok/link flow, not NextAuth signIn
   ],
   session: {
     strategy: 'jwt',

@@ -209,6 +209,32 @@
   padding: 4rem 0;
 }
 
+.connectPrompt {
+  text-align: center;
+}
+
+.connectPrompt p {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.connectedBadge {
+  font-size: 0.75rem;
+  color: var(--success, #22c55e);
+  background-color: rgba(34, 197, 94, 0.1);
+  border: 1px solid var(--success, #22c55e);
+  border-radius: var(--radius);
+  padding: 0.25rem 0.625rem;
+  display: inline-block;
+  margin-bottom: 1rem;
+}
+
+.loadingText {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
 @media (max-width: 768px) {
   .layout {
     grid-template-columns: 1fr;
