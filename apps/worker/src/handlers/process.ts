@@ -13,7 +13,7 @@ import {
 } from '@clipflow/shared';
 import { prisma } from '@clipflow/db';
 import {
-  processVideo,
+  processVideoVertical,
   generateThumbnail,
 } from '@clipflow/video-processing';
 import { createReadStream } from 'fs';
@@ -53,17 +53,13 @@ export async function handleProcess(job: Job<VideoJob>): Promise<void> {
     const startTime = options?.startTime as number | undefined;
     const endTime = options?.endTime as number | undefined;
 
-    let maxDuration: number | undefined;
-    if (startTime !== undefined && endTime !== undefined) {
-      maxDuration = endTime - startTime;
-    }
-
-    await processVideo({
+    await processVideoVertical({
       inputPath: rawPath,
       outputPath: processedPath,
       width: 1080,
       height: 1920,
-      maxDuration,
+      startTime: startTime,
+      endTime: endTime,
     });
 
     await job.updateProgress(60);
