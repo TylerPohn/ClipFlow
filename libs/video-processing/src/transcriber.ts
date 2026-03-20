@@ -2,7 +2,11 @@ import OpenAI from 'openai';
 import { createReadStream } from 'fs';
 import type { TranscriptWord } from '@clipflow/shared';
 
-const openai = new OpenAI();
+let _openai: OpenAI | null = null;
+function getOpenAI() {
+  if (!_openai) _openai = new OpenAI();
+  return _openai;
+}
 
 export interface TranscriptionResult {
   text: string;
@@ -12,7 +16,7 @@ export interface TranscriptionResult {
 export async function transcribeVideo(
   filePath: string
 ): Promise<TranscriptionResult> {
-  const response = await openai.audio.transcriptions.create({
+  const response = await getOpenAI().audio.transcriptions.create({
     file: createReadStream(filePath),
     model: 'whisper-1',
     response_format: 'verbose_json',

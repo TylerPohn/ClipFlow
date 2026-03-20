@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Worker } from 'bullmq';
 import { QUEUE_NAME, JobType, type VideoJob } from '@clipflow/shared';
 import { handleDownload } from './handlers/download';
