@@ -33,24 +33,34 @@ export async function POST(
 
   const body = (await request.json()) as ProcessBody;
 
-  await videoQueue.add(JobType.PROCESS, {
-    type: JobType.PROCESS,
-    videoId: video.id,
-    userId,
-    options: {
-      startTime: body.startTime,
-      endTime: body.endTime,
-      captions: body.captions,
-      captionStyle: body.captionStyle,
-    },
-  });
-
-  if (body.captions) {
-    await videoQueue.add(JobType.TRANSCRIBE, {
-      type: JobType.TRANSCRIBE,
+  if (!video.rawStorageKey) {
+    // Video never downloaded successfully — re-enqueue DOWNLOAD
+    await videoQueue.add(JobType.DOWNLOAD, {
+      type: JobType.DOWNLOAD,
       videoId: video.id,
       userId,
+      sourceUrl: video.sourceUrl,
     });
+  } else {
+    await videoQueue.add(JobType.PROCESS, {
+      type: JobType.PROCESS,
+      videoId: video.id,
+      userId,
+      options: {
+        startTime: body.startTime,
+        endTime: body.endTime,
+        captions: body.captions,
+        captionStyle: body.captionStyle,
+      },
+    });
+
+    if (body.captions) {
+      await videoQueue.add(JobType.TRANSCRIBE, {
+        type: JobType.TRANSCRIBE,
+        videoId: video.id,
+        userId,
+      });
+    }
   }
 
   const updatedVideo = await prisma.video.update({
