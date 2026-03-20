@@ -64,21 +64,28 @@ export function processVideo(options: ProcessVideoOptions): Promise<void> {
   });
 }
 
-export function generateThumbnail(
+export async function generateThumbnail(
   inputPath: string,
   outputPath: string,
   timestamp = '00:00:01'
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
-      .screenshots({
-        timestamps: [timestamp],
-        filename: outputPath,
-        count: 1,
-      })
-      .on('end', () => resolve())
-      .on('error', (err) => reject(err));
-  });
+  const args = [
+    '-ss', timestamp,
+    '-i', inputPath,
+    '-frames:v', '1',
+    '-q:v', '2',
+    '-y',
+    outputPath,
+  ];
+
+  try {
+    execFileSync('ffmpeg', args, {
+      maxBuffer: 10 * 1024 * 1024,
+      stdio: ['ignore', 'ignore', 'ignore'],
+    });
+  } catch {
+    throw new Error(`Failed to generate thumbnail from ${inputPath}`);
+  }
 }
 
 export interface ProcessVideoVerticalOptions {
