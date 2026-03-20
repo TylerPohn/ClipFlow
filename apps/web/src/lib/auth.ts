@@ -7,6 +7,7 @@ import GitHubProvider from 'next-auth/providers/github';
 import { prisma } from '@clipflow/db';
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET,
   adapter: PrismaAdapter(prisma) as NextAuthOptions['adapter'],
   providers: [
     GitHubProvider({
