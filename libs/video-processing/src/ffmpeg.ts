@@ -158,25 +158,21 @@ export async function processVideoVertical(
 
   console.log('ffmpeg args:', args.join(' '));
 
-  // Write a wrapper script that captures stderr and runs ffmpeg
-  const { writeFileSync, readFileSync, unlinkSync } = await import('fs');
-  const scriptPath = outputPath + '.sh';
-  const stderrPath = outputPath + '.stderr';
-  writeFileSync(scriptPath, `#!/bin/bash\nffmpeg ${args.map(a => `'${a}'`).join(' ')} 2>"${stderrPath}"\n`, { mode: 0o755 });
+  // Run ffmpeg via bash with stderr captured to a fixed location
+  const stderrLog = '/tmp/clipflow-ffmpeg-debug.log';
+  const cmdLine = `ffmpeg ${args.map(a => "'" + a + "'").join(' ')} 2>${stderrLog}`;
+  console.log('Running:', cmdLine);
 
   try {
-    execFileSync('bash', [scriptPath], {
+    execFileSync('bash', ['-c', cmdLine], {
       maxBuffer: 50 * 1024 * 1024,
       timeout: 120000,
     });
-  } catch (error: unknown) {
+  } catch {
+    const { readFileSync } = await import('fs');
     let stderr = '';
-    try { stderr = readFileSync(stderrPath, 'utf-8'); } catch {}
-    console.error('Full ffmpeg stderr:', stderr);
+    try { stderr = readFileSync(stderrLog, 'utf-8'); } catch {}
     const lastLines = stderr.split('\n').slice(-15).join('\n');
-    throw new Error(`ffmpeg exited with code 1: ${lastLines}`);
-  } finally {
-    try { unlinkSync(scriptPath); } catch {}
-    try { unlinkSync(stderrPath); } catch {}
+    throw new Error(`ffmpeg failed: ${lastLines}`);
   }
 }
