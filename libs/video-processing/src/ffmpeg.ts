@@ -155,8 +155,12 @@ export async function processVideoVertical(
       .audioCodec('aac')
       .outputOptions(['-crf', '23'])
       .output(outputPath)
+      .on('start', (cmd) => console.log('ffmpeg command:', cmd))
       .on('end', () => resolve())
-      .on('error', (err) => reject(err))
+      .on('error', (err, stdout, stderr) => {
+        console.error('ffmpeg stderr:', stderr);
+        reject(err);
+      })
       .run();
   });
 }
