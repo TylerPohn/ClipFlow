@@ -158,6 +158,7 @@ export async function processVideoVertical(
 
   console.log('ffmpeg args:', args.join(' '));
 
+  const { writeFileSync } = await import('fs');
   try {
     execFileSync('ffmpeg', args, {
       maxBuffer: 50 * 1024 * 1024,
@@ -166,6 +167,8 @@ export async function processVideoVertical(
   } catch (error: unknown) {
     const err = error as { stderr?: Buffer; status?: number };
     const stderr = err.stderr?.toString() || '';
+    writeFileSync('/tmp/clipflow-ffmpeg-stderr.log', stderr);
+    console.error('Full ffmpeg stderr written to /tmp/clipflow-ffmpeg-stderr.log');
     const lastLines = stderr.split('\n').slice(-15).join('\n');
     throw new Error(`ffmpeg exited with code ${err.status}: ${lastLines}`);
   }
