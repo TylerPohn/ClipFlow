@@ -1,4 +1,8 @@
 import ffmpeg from 'fluent-ffmpeg';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 export interface ProcessVideoOptions {
   inputPath: string;
@@ -111,21 +115,17 @@ export async function processVideoVertical(
   const filters: string[] = [];
 
   // Scale and crop for vertical format
-  // For landscape videos: scale to fill height, then crop width to center
   const targetAspect = width / height;
   const srcAspect = srcWidth / srcHeight;
 
   if (srcAspect > targetAspect) {
-    // Source is wider than target: scale by height, crop width
     filters.push(`scale=-2:${height}`);
     filters.push(`crop=${width}:${height}`);
   } else {
-    // Source is taller or same: scale by width, crop height
     filters.push(`scale=${width}:-2`);
     filters.push(`crop=${width}:${height}`);
   }
 
-  // Burn in subtitles if provided
   if (subtitlePath) {
     const isAss = subtitlePath.endsWith('.ass');
     const filterName = isAss ? 'ass' : 'subtitles';
@@ -136,31 +136,36 @@ export async function processVideoVertical(
     filters.push(`${filterName}='${escapedPath}'`);
   }
 
-  return new Promise((resolve, reject) => {
-    let command = ffmpeg(inputPath);
+  const args: string[] = [];
 
-    if (startTime !== undefined) {
-      command = command.seekInput(startTime);
-    }
+  if (startTime !== undefined) {
+    args.push('-ss', String(startTime));
+  }
 
-    if (endTime !== undefined) {
-      const duration =
-        startTime !== undefined ? endTime - startTime : endTime;
-      command = command.duration(duration);
-    }
+  args.push('-i', inputPath);
 
-    command
-      .videoFilters(filters)
-      .videoCodec('libx264')
-      .audioCodec('aac')
-      .outputOptions(['-crf', '23'])
-      .output(outputPath)
-      .on('start', (cmd) => console.log('ffmpeg command:', cmd))
-      .on('end', () => resolve())
-      .on('error', (err, stdout, stderr) => {
-        console.error('ffmpeg stderr:', stderr);
-        reject(err);
-      })
-      .run();
-  });
+  if (endTime !== undefined) {
+    const duration =
+      startTime !== undefined ? endTime - startTime : endTime;
+    args.push('-t', String(duration));
+  }
+
+  args.push(
+    '-vf', filters.join(','),
+    '-c:v', 'libx264',
+    '-c:a', 'aac',
+    '-crf', '23',
+    '-y',
+    outputPath
+  );
+
+  console.log('ffmpeg args:', args.join(' '));
+
+  try {
+    await execFileAsync('ffmpeg', args, { maxBuffer: 10 * 1024 * 1024 });
+  } catch (error: unknown) {
+    const err = error as { stderr?: string; message: string };
+    const lastLines = (err.stderr || '').split('\n').slice(-10).join('\n');
+    throw new Error(`ffmpeg exited with error: ${lastLines}`);
+  }
 }
