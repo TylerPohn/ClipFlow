@@ -60,3 +60,4 @@ libs/db/src/generated
 
 # Private deploy/server notes
 DEPLOY.local.md
+CLAUDE.md
