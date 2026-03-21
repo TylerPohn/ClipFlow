@@ -247,10 +247,17 @@ export default function VideoDetailPage() {
         throw new Error(data.error || 'Publish failed');
       }
 
-      await fetchVideo();
+      // Poll until post status resolves
+      const poll = setInterval(async () => {
+        const updated = await fetchVideo();
+        const p = updated?.posts?.[0];
+        if (p && p.status !== 'UPLOADING') {
+          clearInterval(poll);
+          setPublishing(false);
+        }
+      }, 3000);
     } catch (err: unknown) {
       setPublishError(err instanceof Error ? err.message : 'Something went wrong');
-    } finally {
       setPublishing(false);
     }
   }
