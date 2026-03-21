@@ -15,9 +15,14 @@ export default function NavBar() {
         </Link>
         <div className={styles.links}>
           {session && (
-            <Link href="/dashboard" className={styles.link}>
-              Dashboard
-            </Link>
+            <>
+              <Link href="/dashboard" className={styles.link}>
+                Dashboard
+              </Link>
+              <Link href="/dashboard/youtube" className={styles.link}>
+                YouTube
+              </Link>
+            </>
           )}
           {status === 'loading' ? null : session ? (
             <button className="btn-secondary" onClick={() => signOut()}>
