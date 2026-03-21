@@ -91,16 +91,20 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
         }
       );
 
+      const initBody = await initResponse.text();
+      console.log(`TikTok init response (${initResponse.status}):`, initBody);
+
       if (!initResponse.ok) {
-        const errorBody = await initResponse.text();
         throw new Error(
-          `TikTok init failed (${initResponse.status}): ${errorBody}`
+          `TikTok init failed (${initResponse.status}): ${initBody}`
         );
       }
 
-      const initData = (await initResponse.json()) as {
+      const initData = JSON.parse(initBody) as {
         data: { publish_id: string; upload_url: string };
       };
+
+      console.log(`TikTok publish_id: ${initData.data.publish_id}, upload_url: ${initData.data.upload_url}`);
 
       await job.updateProgress(70);
 
@@ -114,14 +118,31 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
         body: videoBuffer,
       });
 
+      const uploadBody = await uploadResponse.text();
+      console.log(`TikTok upload response (${uploadResponse.status}):`, uploadBody);
+
       if (!uploadResponse.ok) {
-        const errorBody = await uploadResponse.text();
         throw new Error(
-          `TikTok upload failed (${uploadResponse.status}): ${errorBody}`
+          `TikTok upload failed (${uploadResponse.status}): ${uploadBody}`
         );
       }
 
       platformPostId = initData.data.publish_id;
+
+      // Step 3: Check publish status
+      const statusResponse = await fetch(
+        'https://open.tiktokapis.com/v2/post/publish/status/fetch/',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${account.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ publish_id: platformPostId }),
+        }
+      );
+      const statusBody = await statusResponse.text();
+      console.log(`TikTok publish status (${statusResponse.status}):`, statusBody);
 
       await job.updateProgress(90);
     } catch (uploadError) {
