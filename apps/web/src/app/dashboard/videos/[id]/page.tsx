@@ -79,15 +79,22 @@ export default function VideoDetailPage() {
         setCaption(data.title);
       }
       if (!hashtags && data.description) {
-        const lines = data.description.trim().split('\n');
-        const lastLine = lines[lines.length - 1].trim();
-        const parts = lastLine.split(',').map((t) => t.trim());
-        if (parts.length >= 2 && parts.every((p) => /^#?[\w][\w\s]*$/.test(p))) {
-          const parsed = parts
+        const desc = data.description.trim();
+        // Extract #Hashtags from anywhere in the description
+        const hashtagMatches = desc.match(/#(\w+)/g);
+        if (hashtagMatches && hashtagMatches.length >= 2) {
+          const parsed = hashtagMatches
             .map((t) => t.replace(/^#/, ''))
-            .filter(Boolean)
             .slice(0, 4);
           setHashtags(parsed.join(', '));
+        } else {
+          // Fallback: last line is comma-separated keywords
+          const lines = desc.split('\n');
+          const lastLine = lines[lines.length - 1].trim();
+          const parts = lastLine.split(',').map((t) => t.trim());
+          if (parts.length >= 2 && parts.every((p) => /^[\w][\w\s]*$/.test(p))) {
+            setHashtags(parts.slice(0, 4).join(', '));
+          }
         }
       }
       if (data.duration && !endTime) {
