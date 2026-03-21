@@ -25,13 +25,13 @@ export async function GET(request: Request) {
 
   if (error) {
     return NextResponse.redirect(
-      new URL(`${returnTo}?tiktok_error=${error}`, request.url)
+      new URL(`${returnTo}?tiktok_error=${error}`, process.env.NEXTAUTH_URL)
     );
   }
 
   if (!code || !state || state !== savedState) {
     return NextResponse.redirect(
-      new URL(`${returnTo}?tiktok_error=invalid_state`, request.url)
+      new URL(`${returnTo}?tiktok_error=invalid_state`, process.env.NEXTAUTH_URL)
     );
   }
 
@@ -95,5 +95,5 @@ export async function GET(request: Request) {
     },
   });
 
-  return NextResponse.redirect(new URL(returnTo, request.url));
+  return NextResponse.redirect(new URL(returnTo, process.env.NEXTAUTH_URL));
 }
