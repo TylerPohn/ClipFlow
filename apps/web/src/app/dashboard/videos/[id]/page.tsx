@@ -78,6 +78,18 @@ export default function VideoDetailPage() {
       if (!caption && data.title) {
         setCaption(data.title);
       }
+      if (!hashtags && data.description) {
+        const lines = data.description.trim().split('\n');
+        const lastLine = lines[lines.length - 1].trim();
+        const parts = lastLine.split(',').map((t) => t.trim());
+        if (parts.length >= 2 && parts.every((p) => /^#?[\w][\w\s]*$/.test(p))) {
+          const parsed = parts
+            .map((t) => t.replace(/^#/, ''))
+            .filter(Boolean)
+            .slice(0, 4);
+          setHashtags(parsed.join(', '));
+        }
+      }
       if (data.duration && !endTime) {
         setEndTime(formatDuration(data.duration));
       }
@@ -88,7 +100,7 @@ export default function VideoDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [id, endTime, caption]);
+  }, [id, endTime, caption, hashtags]);
 
   // Initial fetch
   useEffect(() => {
