@@ -75,6 +75,9 @@ export default function VideoDetailPage() {
       if (!res.ok) throw new Error('Failed to load video');
       const data: Video = await res.json();
       setVideo(data);
+      if (!caption && data.title) {
+        setCaption(data.title);
+      }
       if (data.duration && !endTime) {
         setEndTime(formatDuration(data.duration));
       }
@@ -85,7 +88,7 @@ export default function VideoDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [id, endTime]);
+  }, [id, endTime, caption]);
 
   // Initial fetch
   useEffect(() => {
