@@ -312,6 +312,22 @@ export default function VideoDetailPage() {
             </div>
           )}
 
+          {/* Pending state — needs download & processing */}
+          {video.status === 'PENDING' && (
+            <div className={styles.card}>
+              <p>This video hasn&apos;t been processed yet.</p>
+              <button
+                className="btn-primary"
+                onClick={handleProcess}
+                disabled={processing}
+                style={{ marginTop: '0.75rem' }}
+              >
+                {processing ? 'Starting...' : 'Download & Process'}
+              </button>
+              {error && <p className={styles.errorText}>{error}</p>}
+            </div>
+          )}
+
           {/* Failed state */}
           {video.status === 'FAILED' && (
             <div className={styles.failedCard}>
