@@ -46,15 +46,33 @@ export async function POST(
     );
   }
 
-  const post = await prisma.post.create({
-    data: {
+  // Reuse existing FAILED post for retries instead of creating duplicates
+  const existingPost = await prisma.post.findFirst({
+    where: {
       videoId: video.id,
       platform: body.platform as Platform,
-      caption: body.caption ?? null,
-      hashtags: body.hashtags ?? [],
-      status: PostStatus.UPLOADING,
+      status: PostStatus.FAILED,
     },
   });
+
+  const post = existingPost
+    ? await prisma.post.update({
+        where: { id: existingPost.id },
+        data: {
+          caption: body.caption ?? null,
+          hashtags: body.hashtags ?? [],
+          status: PostStatus.UPLOADING,
+        },
+      })
+    : await prisma.post.create({
+        data: {
+          videoId: video.id,
+          platform: body.platform as Platform,
+          caption: body.caption ?? null,
+          hashtags: body.hashtags ?? [],
+          status: PostStatus.UPLOADING,
+        },
+      });
 
   await videoQueue.add(JobType.UPLOAD, {
     type: JobType.UPLOAD,

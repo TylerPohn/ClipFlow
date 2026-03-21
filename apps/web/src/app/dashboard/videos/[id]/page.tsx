@@ -439,9 +439,9 @@ export default function VideoDetailPage() {
                   className="btn-primary"
                   style={{ marginTop: '1rem', width: '100%' }}
                   onClick={handlePublish}
-                  disabled={publishing || video.status !== 'READY'}
+                  disabled={publishing || video.status !== 'READY' || post?.status === 'UPLOADING' || post?.status === 'POSTED'}
                 >
-                  {publishing ? 'Publishing...' : 'Post to TikTok'}
+                  {publishing ? 'Publishing...' : post?.status === 'FAILED' ? 'Retry Post to TikTok' : post?.status === 'POSTED' ? 'Posted to TikTok' : 'Post to TikTok'}
                 </button>
 
                 {publishError && <p className={styles.errorText}>{publishError}</p>}
