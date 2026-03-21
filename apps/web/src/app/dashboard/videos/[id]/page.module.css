@@ -84,6 +84,9 @@
   font-size: 1rem;
   font-weight: 600;
   margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .formGrid {
@@ -226,7 +229,9 @@
   border: 1px solid var(--success, #22c55e);
   border-radius: var(--radius);
   padding: 0.25rem 0.625rem;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
   margin-bottom: 1rem;
 }
 

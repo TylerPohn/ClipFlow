@@ -58,6 +58,11 @@ export default function VideoDetailPage() {
   // TikTok connection
   const [tiktokConnected, setTiktokConnected] = useState<boolean | null>(null);
 
+  // YouTube connection
+  const [youtubeConnected, setYoutubeConnected] = useState<boolean | null>(null);
+  const [youtubeChannel, setYoutubeChannel] = useState<{ channelName: string; lastSyncedAt: string | null } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
   // Publish options
   const [caption, setCaption] = useState('');
   const [hashtags, setHashtags] = useState('');
@@ -102,6 +107,40 @@ export default function VideoDetailPage() {
     }
     checkTikTok();
   }, []);
+
+  // Check YouTube connection
+  useEffect(() => {
+    async function checkYouTube() {
+      try {
+        const res = await fetch('/api/accounts/youtube');
+        if (res.ok) {
+          const data = await res.json();
+          setYoutubeConnected(data.connected);
+          setYoutubeChannel(data.channel);
+        }
+      } catch {
+        setYoutubeConnected(false);
+      }
+    }
+    checkYouTube();
+  }, []);
+
+  async function handleYouTubeSync() {
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/youtube/sync', { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Sync failed');
+      }
+      // Refresh video data after sync is queued
+      setTimeout(() => fetchVideo(), 3000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   // Poll while processing/downloading
   useEffect(() => {
@@ -395,6 +434,55 @@ export default function VideoDetailPage() {
             )}
 
             {tiktokConnected === null && (
+              <p className={styles.loadingText}>Checking connection...</p>
+            )}
+          </div>
+
+          {/* YouTube Integration */}
+          <div className={styles.card}>
+            <h2 className={styles.sectionTitle}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="#FF0000"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+              YouTube Channel
+            </h2>
+
+            {youtubeConnected === false && (
+              <div className={styles.connectPrompt}>
+                <p>Link your YouTube channel to auto-sync video metadata.</p>
+                <button
+                  className="btn-primary"
+                  style={{ width: '100%' }}
+                  onClick={() => {
+                    window.location.href = `/api/auth/youtube/link?returnTo=${encodeURIComponent(window.location.pathname)}`;
+                  }}
+                >
+                  Connect YouTube
+                </button>
+              </div>
+            )}
+
+            {youtubeConnected === true && youtubeChannel && (
+              <>
+                <div className={styles.connectedBadge} style={{ borderColor: '#ef4444', color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#ef4444"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                  {youtubeChannel.channelName}
+                </div>
+                {youtubeChannel.lastSyncedAt && (
+                  <p className={styles.loadingText} style={{ marginBottom: '0.75rem' }}>
+                    Last synced: {new Date(youtubeChannel.lastSyncedAt).toLocaleString()}
+                  </p>
+                )}
+                <button
+                  className="btn-secondary"
+                  style={{ width: '100%' }}
+                  onClick={handleYouTubeSync}
+                  disabled={syncing}
+                >
+                  {syncing ? 'Syncing...' : 'Sync Videos'}
+                </button>
+              </>
+            )}
+
+            {youtubeConnected === null && (
               <p className={styles.loadingText}>Checking connection...</p>
             )}
           </div>

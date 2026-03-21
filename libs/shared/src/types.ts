@@ -25,6 +25,8 @@ export enum JobType {
   PROCESS = 'PROCESS',
   TRANSCRIBE = 'TRANSCRIBE',
   UPLOAD = 'UPLOAD',
+  YOUTUBE_SYNC = 'YOUTUBE_SYNC',
+  YOUTUBE_SUBSCRIBE = 'YOUTUBE_SUBSCRIBE',
 }
 
 export interface VideoJob {
