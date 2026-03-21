@@ -69,11 +69,14 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
 
       await job.updateProgress(50);
 
-      // Step 1: Initialize upload via TikTok Content Posting API
+      // Step 1: Initialize direct post via TikTok Content Posting API
       const videoBuffer = await readFile(videoPath);
+      const caption = job.data.options?.caption as string | undefined;
+      const hashtags = (job.data.options?.hashtags as string[] | undefined) ?? [];
+      const fullCaption = [caption, ...hashtags.map((t) => `#${t}`)].filter(Boolean).join(' ');
 
       const initResponse = await fetch(
-        'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/',
+        'https://open.tiktokapis.com/v2/post/publish/video/init/',
         {
           method: 'POST',
           headers: {
@@ -81,6 +84,14 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
+            post_info: {
+              title: fullCaption.slice(0, 150),
+              privacy_level: 'SELF_ONLY',
+              disable_duet: false,
+              disable_comment: false,
+              disable_stitch: false,
+              video_cover_timestamp_ms: 0,
+            },
             source_info: {
               source: 'FILE_UPLOAD',
               video_size: videoBuffer.byteLength,
