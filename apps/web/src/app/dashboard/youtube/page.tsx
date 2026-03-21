@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -49,6 +49,9 @@ export default function YouTubeBrowsePage() {
   const [error, setError] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [importingId, setImportingId] = useState<string | null>(null);
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (authStatus === 'unauthenticated') {
@@ -87,6 +90,7 @@ export default function YouTubeBrowsePage() {
         if (!res.ok) throw new Error('Failed to fetch YouTube videos');
         const data = await res.json();
         setVideos(data.videos);
+        setNextPageToken(data.nextPageToken ?? null);
         if (data.channel) {
           setChannel(data.channel);
         }
@@ -97,6 +101,38 @@ export default function YouTubeBrowsePage() {
 
     fetchVideos();
   }, [connected]);
+
+  const loadMore = useCallback(async () => {
+    if (!nextPageToken || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/youtube/videos?pageToken=${encodeURIComponent(nextPageToken)}`);
+      if (!res.ok) throw new Error('Failed to load more videos');
+      const data = await res.json();
+      setVideos((prev) => [...prev, ...data.videos]);
+      setNextPageToken(data.nextPageToken ?? null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load more videos');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextPageToken, loadingMore]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMore();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   async function handleSync() {
     setSyncing(true);
@@ -110,6 +146,7 @@ export default function YouTubeBrowsePage() {
       if (!videosRes.ok) throw new Error('Failed to fetch videos after sync');
       const data = await videosRes.json();
       setVideos(data.videos);
+      setNextPageToken(data.nextPageToken ?? null);
       if (data.channel) {
         setChannel(data.channel);
       }
@@ -215,41 +252,48 @@ export default function YouTubeBrowsePage() {
       )}
 
       {videos.length > 0 && (
-        <div className={styles.grid}>
-          {videos.map((video) => (
-            <div key={video.videoId} className={styles.videoCard}>
-              <div className={styles.videoThumb}>
-                <img src={video.thumbnailUrl} alt={video.title} />
-                <span className={styles.duration}>{formatDuration(video.duration)}</span>
-              </div>
-              <div className={styles.videoInfo}>
-                <div className={styles.videoTitle}>{video.title}</div>
-                <div className={styles.videoMeta}>
-                  <span className={styles.viewCount}>{formatViews(video.viewCount)}</span>
-                  <span className={styles.publishDate}>
-                    {new Date(video.publishedAt).toLocaleDateString()}
-                  </span>
+        <>
+          <div className={styles.grid}>
+            {videos.map((video) => (
+              <div key={video.videoId} className={styles.videoCard}>
+                <div className={styles.videoThumb}>
+                  <img src={video.thumbnailUrl} alt={video.title} />
+                  <span className={styles.duration}>{formatDuration(video.duration)}</span>
                 </div>
-                {video.imported && video.clipflowVideoId ? (
-                  <Link
-                    href={`/dashboard/videos/${video.clipflowVideoId}`}
-                    className={styles.importedBadge}
-                  >
-                    Imported
-                  </Link>
-                ) : (
-                  <button
-                    className={styles.importBtn}
-                    onClick={() => handleImport(video)}
-                    disabled={importingId === video.videoId}
-                  >
-                    {importingId === video.videoId ? 'Importing...' : 'Import'}
-                  </button>
-                )}
+                <div className={styles.videoInfo}>
+                  <div className={styles.videoTitle}>{video.title}</div>
+                  <div className={styles.videoMeta}>
+                    <span className={styles.viewCount}>{formatViews(video.viewCount)}</span>
+                    <span className={styles.publishDate}>
+                      {new Date(video.publishedAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  {video.imported && video.clipflowVideoId ? (
+                    <Link
+                      href={`/dashboard/videos/${video.clipflowVideoId}`}
+                      className={styles.importedBadge}
+                    >
+                      Imported
+                    </Link>
+                  ) : (
+                    <button
+                      className={styles.importBtn}
+                      onClick={() => handleImport(video)}
+                      disabled={importingId === video.videoId}
+                    >
+                      {importingId === video.videoId ? 'Importing...' : 'Import'}
+                    </button>
+                  )}
+                </div>
               </div>
+            ))}
+          </div>
+          {nextPageToken && (
+            <div ref={sentinelRef} className={styles.loadMore}>
+              {loadingMore && <span>Loading more videos...</span>}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );

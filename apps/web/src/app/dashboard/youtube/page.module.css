@@ -238,3 +238,11 @@
 .empty p {
   margin-bottom: 1.5rem;
 }
+
+.loadMore {
+  text-align: center;
+  padding: 2rem 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  min-height: 1px;
+}
