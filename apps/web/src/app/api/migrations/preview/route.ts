@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth';
 import { prisma } from '@clipflow/db';
-import { Platform, VideoStatus } from '@clipflow/shared';
+import { Platform } from '@clipflow/shared';
 
 interface CadenceConfig {
   videosPerDay: number;
@@ -99,25 +99,12 @@ export async function POST(request: Request) {
       id: { in: body.videoIds },
       userId,
     },
-    select: { id: true, title: true, status: true, processedStorageKey: true },
+    select: { id: true, title: true },
   });
 
   if (videos.length !== body.videoIds.length) {
     return NextResponse.json(
       { error: 'Some videos were not found or do not belong to you' },
-      { status: 400 }
-    );
-  }
-
-  const notReady = videos.filter(
-    (v) => v.status !== VideoStatus.READY || !v.processedStorageKey
-  );
-  if (notReady.length > 0) {
-    return NextResponse.json(
-      {
-        error: `${notReady.length} video(s) are not ready for migration`,
-        videoIds: notReady.map((v) => v.id),
-      },
       { status: 400 }
     );
   }

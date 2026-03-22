@@ -107,7 +107,7 @@ export default function NewMigrationPage() {
       const res = await fetch('/api/videos');
       if (!res.ok) throw new Error('Failed to fetch videos');
       const data = await res.json();
-      // Filter to READY videos only, and check if already posted to dest platform
+      // Show all imported videos, check if already posted to dest platform
       const videoList: Video[] = (data as Array<{
         id: string;
         title: string;
@@ -117,7 +117,6 @@ export default function NewMigrationPage() {
         sourceUrl: string;
         posts?: Array<{ platform: string; status: string }>;
       }>)
-        .filter((v) => v.status === 'READY')
         .map((v) => ({
           id: v.id,
           title: v.title,

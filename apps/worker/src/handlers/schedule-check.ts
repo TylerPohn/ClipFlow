@@ -10,8 +10,6 @@ import {
 } from '@clipflow/shared';
 import { prisma } from '@clipflow/db';
 
-const MAX_RETRIES = 3;
-
 export async function handleScheduleCheck(job: Job<VideoJob>): Promise<void> {
   console.log('Running schedule check...');
 
@@ -48,36 +46,51 @@ export async function handleScheduleCheck(job: Job<VideoJob>): Promise<void> {
 
   try {
     for (const post of duePosts) {
-      // Skip if video isn't ready yet
-      if (post.video.status !== VideoStatus.READY) {
+      // If video is FAILED, mark the post as FAILED too
+      if (post.video.status === VideoStatus.FAILED) {
         console.log(
-          `Skipping post ${post.id} — video ${post.video.id} status is ${post.video.status}`
+          `Post ${post.id} — video ${post.video.id} is FAILED, marking post FAILED`
         );
-
-        // Track retry count via metadata on the migration's defaultSettings
-        const retryKey = `retry_${post.id}`;
-        const retries =
-          ((post.migration?.defaultSettings as Record<string, unknown>)?.[
-            retryKey
-          ] as number) ?? 0;
-
-        if (retries >= MAX_RETRIES) {
-          console.log(
-            `Post ${post.id} exceeded max retries (${MAX_RETRIES}), marking FAILED`
-          );
-          await prisma.post.update({
-            where: { id: post.id },
-            data: { status: PostStatus.FAILED },
-          });
-        }
+        await prisma.post.update({
+          where: { id: post.id },
+          data: { status: PostStatus.FAILED },
+        });
         continue;
       }
 
-      // Skip if no processed file
-      if (!post.video.processedStorageKey) {
-        console.log(
-          `Skipping post ${post.id} — video ${post.video.id} has no processed file`
-        );
+      // If video isn't READY, kick off processing and wait for next cycle
+      if (post.video.status !== VideoStatus.READY || !post.video.processedStorageKey) {
+        // Only enqueue processing if the video is in a state that needs it
+        // (PENDING = needs download+process, DOWNLOADING/PROCESSING = already in progress)
+        if (post.video.status === VideoStatus.PENDING) {
+          console.log(
+            `Post ${post.id} — video ${post.video.id} is PENDING, enqueuing DOWNLOAD+PROCESS`
+          );
+          await queue.add(JobType.DOWNLOAD, {
+            type: JobType.DOWNLOAD,
+            videoId: post.video.id,
+            userId: post.video.userId,
+            sourceUrl: post.video.sourceUrl,
+          });
+        } else if (
+          post.video.status === VideoStatus.READY &&
+          !post.video.processedStorageKey
+        ) {
+          // Has raw file but no processed file
+          console.log(
+            `Post ${post.id} — video ${post.video.id} needs processing, enqueuing PROCESS`
+          );
+          await queue.add(JobType.PROCESS, {
+            type: JobType.PROCESS,
+            videoId: post.video.id,
+            userId: post.video.userId,
+          });
+        } else {
+          console.log(
+            `Post ${post.id} — video ${post.video.id} status is ${post.video.status}, waiting for next cycle`
+          );
+        }
+        // Leave post as SCHEDULED — will pick it up next cycle when video is READY
         continue;
       }
 

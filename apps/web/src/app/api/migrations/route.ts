@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth';
 import { prisma } from '@clipflow/db';
-import { MigrationStatus, Platform, PostStatus, VideoStatus } from '@clipflow/shared';
+import { MigrationStatus, Platform, PostStatus } from '@clipflow/shared';
 
 interface CadenceConfig {
   videosPerDay: number;
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Start date is required' }, { status: 400 });
   }
 
-  // Validate all videos exist, belong to user, are READY, and have processedStorageKey
+  // Validate all videos exist and belong to user
   const videos = await prisma.video.findMany({
     where: {
       id: { in: body.videoIds },
@@ -108,19 +108,6 @@ export async function POST(request: Request) {
   if (videos.length !== body.videoIds.length) {
     return NextResponse.json(
       { error: 'Some videos were not found or do not belong to you' },
-      { status: 400 }
-    );
-  }
-
-  const notReady = videos.filter(
-    (v) => v.status !== VideoStatus.READY || !v.processedStorageKey
-  );
-  if (notReady.length > 0) {
-    return NextResponse.json(
-      {
-        error: `${notReady.length} video(s) are not ready for migration`,
-        videoIds: notReady.map((v) => v.id),
-      },
       { status: 400 }
     );
   }
