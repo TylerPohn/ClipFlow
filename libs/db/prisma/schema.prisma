@@ -17,7 +17,8 @@ model User {
   accounts        Account[]
   sessions        Session[]
   videos          Video[]
-  youtubeChannels YouTubeChannel[]
+  youtubeChannels  YouTubeChannel[]
+  platformAccounts PlatformAccount[] @relation("platformAccounts")
 }
 
 model Account {
@@ -68,6 +69,7 @@ enum Platform {
   INSTAGRAM
   YOUTUBE_SHORTS
   YOUTUBE
+  X
 }
 
 enum PostStatus {
@@ -121,6 +123,26 @@ model YouTubeChannel {
   updatedAt          DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PlatformAccount {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation("platformAccounts", fields: [userId], references: [id], onDelete: Cascade)
+  platform        Platform
+  platformUserId  String
+  displayName     String?
+  handle          String?
+  avatarUrl       String?
+  accessToken     String    @db.Text
+  refreshToken    String?   @db.Text
+  tokenExpiresAt  DateTime?
+  metadata        Json?
+  lastSyncedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, platform, platformUserId])
 }
 
 model Post {

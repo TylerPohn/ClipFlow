@@ -66,7 +66,46 @@ export async function GET(request: Request) {
   // Get channel info
   const channel = await getMyChannel(tokenData.access_token);
 
-  // Upsert the Google-YouTube account
+  const tokenExpiresAt = tokenData.expires_in
+    ? new Date(Date.now() + tokenData.expires_in * 1000)
+    : null;
+  const expiresAtEpoch = tokenData.expires_in
+    ? Math.floor(Date.now() / 1000) + tokenData.expires_in
+    : null;
+
+  // Upsert PlatformAccount (primary record for YouTube integration)
+  const platformAccount = await prisma.platformAccount.upsert({
+    where: {
+      userId_platform_platformUserId: {
+        userId,
+        platform: 'YOUTUBE',
+        platformUserId: channel.channelId,
+      },
+    },
+    update: {
+      displayName: channel.channelName,
+      handle: channel.channelHandle,
+      avatarUrl: channel.thumbnailUrl,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token ?? null,
+      tokenExpiresAt,
+      metadata: { uploadsPlaylistId: channel.uploadsPlaylistId },
+    },
+    create: {
+      userId,
+      platform: 'YOUTUBE',
+      platformUserId: channel.channelId,
+      displayName: channel.channelName,
+      handle: channel.channelHandle,
+      avatarUrl: channel.thumbnailUrl,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token ?? null,
+      tokenExpiresAt,
+      metadata: { uploadsPlaylistId: channel.uploadsPlaylistId },
+    },
+  });
+
+  // Upsert the NextAuth Account record for backwards compat (NextAuth sessions)
   await prisma.account.upsert({
     where: {
       provider_providerAccountId: {
@@ -77,9 +116,7 @@ export async function GET(request: Request) {
     update: {
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token ?? null,
-      expires_at: tokenData.expires_in
-        ? Math.floor(Date.now() / 1000) + tokenData.expires_in
-        : null,
+      expires_at: expiresAtEpoch,
       token_type: tokenData.token_type ?? 'Bearer',
       scope: tokenData.scope ?? 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload',
     },
@@ -90,40 +127,9 @@ export async function GET(request: Request) {
       providerAccountId: channel.channelId,
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token ?? null,
-      expires_at: tokenData.expires_in
-        ? Math.floor(Date.now() / 1000) + tokenData.expires_in
-        : null,
+      expires_at: expiresAtEpoch,
       token_type: tokenData.token_type ?? 'Bearer',
       scope: tokenData.scope ?? 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload',
-    },
-  });
-
-  // Upsert YouTubeChannel record
-  const account = await prisma.account.findUnique({
-    where: {
-      provider_providerAccountId: {
-        provider: 'google-youtube',
-        providerAccountId: channel.channelId,
-      },
-    },
-  });
-
-  await prisma.youTubeChannel.upsert({
-    where: { channelId: channel.channelId },
-    update: {
-      channelName: channel.channelName,
-      channelHandle: channel.channelHandle,
-      thumbnailUrl: channel.thumbnailUrl,
-      uploadsPlaylistId: channel.uploadsPlaylistId,
-    },
-    create: {
-      userId,
-      accountId: account!.id,
-      channelId: channel.channelId,
-      channelName: channel.channelName,
-      channelHandle: channel.channelHandle,
-      thumbnailUrl: channel.thumbnailUrl,
-      uploadsPlaylistId: channel.uploadsPlaylistId,
     },
   });
 
@@ -132,12 +138,12 @@ export async function GET(request: Request) {
     console.error('PubSubHubbub subscription failed:', err);
   });
 
-  // Trigger initial sync
+  // Trigger initial sync using PlatformAccount id
   await videoQueue.add(`youtube-sync-${channel.channelId}`, {
     type: JobType.YOUTUBE_SYNC,
     videoId: '', // not applicable for sync
     userId,
-    options: { channelId: channel.channelId },
+    options: { channelId: channel.channelId, platformAccountId: platformAccount.id },
   });
 
   return NextResponse.redirect(new URL(returnTo, process.env.NEXTAUTH_URL));

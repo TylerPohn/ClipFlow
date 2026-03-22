@@ -62,8 +62,35 @@ export async function GET(request: Request) {
   }
 
   const openId = tokenData.open_id;
+  const tokenExpiresAt = tokenData.expires_in
+    ? new Date(Date.now() + tokenData.expires_in * 1000)
+    : null;
 
-  // Upsert the TikTok account linked to the current user
+  // Upsert the PlatformAccount (new canonical store for tokens)
+  await prisma.platformAccount.upsert({
+    where: {
+      userId_platform_platformUserId: {
+        userId,
+        platform: 'TIKTOK',
+        platformUserId: openId,
+      },
+    },
+    update: {
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token ?? null,
+      tokenExpiresAt,
+    },
+    create: {
+      userId,
+      platform: 'TIKTOK',
+      platformUserId: openId,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token ?? null,
+      tokenExpiresAt,
+    },
+  });
+
+  // Also upsert the NextAuth Account for backwards compatibility
   await prisma.account.upsert({
     where: {
       provider_providerAccountId: {

@@ -39,12 +39,12 @@ export async function POST(request: Request) {
   const videoId = videoIdMatch[1];
   const channelId = channelIdMatch[1];
 
-  // Look up the channel to find the user
-  const channel = await prisma.youTubeChannel.findUnique({
-    where: { channelId },
+  // Look up the PlatformAccount by YouTube channel ID
+  const platformAccount = await prisma.platformAccount.findFirst({
+    where: { platform: 'YOUTUBE', platformUserId: channelId },
   });
 
-  if (!channel) {
+  if (!platformAccount) {
     // Channel not linked to any user — ignore
     return NextResponse.json({ status: 'ignored' });
   }
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   // Check if we already have this video imported
   const existing = await prisma.video.findFirst({
     where: {
-      userId: channel.userId,
+      userId: platformAccount.userId,
       sourceUrl: { contains: videoId },
     },
   });
@@ -62,8 +62,8 @@ export async function POST(request: Request) {
     await videoQueue.add(`youtube-sync-${videoId}`, {
       type: JobType.YOUTUBE_SYNC,
       videoId: '',
-      userId: channel.userId,
-      options: { channelId, specificVideoId: videoId },
+      userId: platformAccount.userId,
+      options: { channelId, platformAccountId: platformAccount.id, specificVideoId: videoId },
     });
   }
 

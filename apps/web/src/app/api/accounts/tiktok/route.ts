@@ -10,13 +10,15 @@ export async function GET() {
 
   const userId = (session.user as { id: string }).id;
 
-  const account = await prisma.account.findFirst({
-    where: { userId, provider: 'tiktok' },
-    select: { id: true, providerAccountId: true },
+  const account = await prisma.platformAccount.findFirst({
+    where: { userId, platform: 'TIKTOK' },
+    select: { id: true, platformUserId: true, displayName: true, handle: true },
   });
 
   return NextResponse.json({
     connected: !!account,
-    accountId: account?.providerAccountId ?? null,
+    accountId: account?.platformUserId ?? null,
+    displayName: account?.displayName ?? null,
+    handle: account?.handle ?? null,
   });
 }

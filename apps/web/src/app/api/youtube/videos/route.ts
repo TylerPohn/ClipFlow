@@ -22,35 +22,34 @@ export async function GET(request: Request) {
     50
   );
 
-  // 1. Find the user's YouTube channel
-  const ytChannel = await prisma.youTubeChannel.findFirst({
-    where: { userId },
+  // 1. Find the user's YouTube PlatformAccount
+  const platformAccount = await prisma.platformAccount.findFirst({
+    where: { userId, platform: 'YOUTUBE' },
   });
-  if (!ytChannel) {
+  if (!platformAccount) {
     return NextResponse.json(
       { error: 'No YouTube channel linked' },
       { status: 400 }
     );
   }
 
-  // 2. Find the user's google-youtube account
-  const account = await prisma.account.findFirst({
-    where: { userId, provider: 'google-youtube' },
-  });
-  if (!account) {
+  // 2. Get a valid access token from PlatformAccount
+  const accessToken = await getValidAccessToken(platformAccount.id);
+
+  // 3. Get uploadsPlaylistId from PlatformAccount metadata
+  const metadata = platformAccount.metadata as { uploadsPlaylistId?: string } | null;
+  const uploadsPlaylistId = metadata?.uploadsPlaylistId;
+  if (!uploadsPlaylistId) {
     return NextResponse.json(
-      { error: 'No YouTube account found' },
+      { error: 'Missing uploads playlist ID' },
       { status: 400 }
     );
   }
 
-  // 3. Get a valid access token
-  const accessToken = await getValidAccessToken(account.id);
-
   // 4. List uploaded video IDs from the channel's uploads playlist
   const { videoIds, nextPageToken } = await listUploadedVideoIds(
     accessToken,
-    ytChannel.uploadsPlaylistId,
+    uploadsPlaylistId,
     maxResults,
     pageToken
   );
@@ -60,9 +59,9 @@ export async function GET(request: Request) {
       videos: [],
       nextPageToken: nextPageToken ?? null,
       channel: {
-        channelName: ytChannel.channelName,
-        channelHandle: ytChannel.channelHandle,
-        thumbnailUrl: ytChannel.thumbnailUrl,
+        channelName: platformAccount.displayName,
+        channelHandle: platformAccount.handle,
+        thumbnailUrl: platformAccount.avatarUrl,
       },
     });
   }
@@ -112,9 +111,9 @@ export async function GET(request: Request) {
     videos,
     nextPageToken: nextPageToken ?? null,
     channel: {
-      channelName: ytChannel.channelName,
-      channelHandle: ytChannel.channelHandle,
-      thumbnailUrl: ytChannel.thumbnailUrl,
+      channelName: platformAccount.displayName,
+      channelHandle: platformAccount.handle,
+      thumbnailUrl: platformAccount.avatarUrl,
     },
   });
 }

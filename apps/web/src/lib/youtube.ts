@@ -12,24 +12,32 @@ interface GoogleTokenResponse {
 
 /**
  * Refresh a Google OAuth access token if expired.
- * Returns the current (or refreshed) access token.
+ * Accepts a PlatformAccount ID and refreshes/returns the access token.
  */
-export async function getValidAccessToken(accountId: string): Promise<string> {
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account?.access_token) {
-    throw new Error('No YouTube account found or missing access token');
+export async function getValidAccessToken(platformAccountId: string): Promise<string> {
+  const platformAccount = await prisma.platformAccount.findUnique({
+    where: { id: platformAccountId },
+  });
+  if (!platformAccount?.accessToken) {
+    throw new Error('No YouTube PlatformAccount found or missing access token');
   }
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = new Date();
+  const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+
   // Refresh if expires within 5 minutes
-  if (account.expires_at && account.expires_at < now + 300 && account.refresh_token) {
+  if (
+    platformAccount.tokenExpiresAt &&
+    platformAccount.tokenExpiresAt < fiveMinutesFromNow &&
+    platformAccount.refreshToken
+  ) {
     const res = await fetch(GOOGLE_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         client_id: process.env.GOOGLE_CLIENT_ID!,
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        refresh_token: account.refresh_token,
+        refresh_token: platformAccount.refreshToken,
         grant_type: 'refresh_token',
       }),
     });
@@ -40,19 +48,19 @@ export async function getValidAccessToken(accountId: string): Promise<string> {
 
     const data: GoogleTokenResponse = await res.json();
 
-    await prisma.account.update({
-      where: { id: accountId },
+    await prisma.platformAccount.update({
+      where: { id: platformAccountId },
       data: {
-        access_token: data.access_token,
-        expires_at: Math.floor(Date.now() / 1000) + data.expires_in,
-        ...(data.refresh_token ? { refresh_token: data.refresh_token } : {}),
+        accessToken: data.access_token,
+        tokenExpiresAt: new Date(Date.now() + data.expires_in * 1000),
+        ...(data.refresh_token ? { refreshToken: data.refresh_token } : {}),
       },
     });
 
     return data.access_token;
   }
 
-  return account.access_token;
+  return platformAccount.accessToken;
 }
 
 /**

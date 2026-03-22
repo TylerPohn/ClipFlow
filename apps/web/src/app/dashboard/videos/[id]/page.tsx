@@ -4,10 +4,12 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import StatusBadge from '@/components/StatusBadge';
+import { PLATFORM_CONFIG, type PlatformConfig } from '@clipflow/shared/src/platforms';
 import styles from './page.module.css';
 
 interface Post {
   id: string;
+  platform: string;
   status: 'DRAFT' | 'UPLOADING' | 'POSTED' | 'FAILED' | 'SCHEDULED';
   caption?: string;
 }
@@ -25,6 +27,32 @@ interface Video {
   posts?: Post[];
 }
 
+interface AccountInfo {
+  connected: boolean;
+  displayName?: string;
+  handle?: string;
+  avatarUrl?: string;
+  lastSyncedAt?: string;
+}
+
+interface PlatformFormState {
+  title: string;
+  description: string;
+  tags: string;
+  visibility: string;
+}
+
+const PUBLISH_PLATFORMS = Object.entries(PLATFORM_CONFIG).filter(
+  ([, cfg]) => (cfg as PlatformConfig).supportsPost
+) as [string, PlatformConfig][];
+
+// Map platform keys to their auth route name (some share auth flows)
+const PLATFORM_AUTH_ROUTE: Record<string, string> = {
+  TIKTOK: 'tiktok',
+  YOUTUBE: 'youtube',
+  YOUTUBE_SHORTS: 'youtube',
+};
+
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
@@ -35,6 +63,26 @@ function parseMMSS(value: string): number | null {
   const match = value.match(/^(\d+):(\d{2})$/);
   if (!match) return null;
   return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+}
+
+function extractDefaults(video: Video): { caption: string; tags: string } {
+  const caption = video.title || '';
+  let tags = '';
+  if (video.description) {
+    const desc = video.description.trim();
+    const hashtagMatches = desc.match(/#(\w+)/g);
+    if (hashtagMatches && hashtagMatches.length >= 2) {
+      tags = hashtagMatches.map((t) => t.replace(/^#/, '')).slice(0, 4).join(', ');
+    } else {
+      const lines = desc.split('\n');
+      const lastLine = lines[lines.length - 1].trim();
+      const parts = lastLine.split(',').map((t) => t.trim());
+      if (parts.length >= 2 && parts.every((p) => /^[\w][\w\s]*$/.test(p))) {
+        tags = parts.slice(0, 4).join(', ');
+      }
+    }
+  }
+  return { caption, tags };
 }
 
 export default function VideoDetailPage() {
@@ -55,19 +103,16 @@ export default function VideoDetailPage() {
   const [captionStyle, setCaptionStyle] = useState('white_outline');
   const [processing, setProcessing] = useState(false);
 
-  // TikTok connection
-  const [tiktokConnected, setTiktokConnected] = useState<boolean | null>(null);
+  // Account status for all platforms
+  const [accounts, setAccounts] = useState<Record<string, AccountInfo>>({});
+  const [accountsLoading, setAccountsLoading] = useState(true);
 
-  // YouTube connection
-  const [youtubeConnected, setYoutubeConnected] = useState<boolean | null>(null);
-  const [youtubeChannel, setYoutubeChannel] = useState<{ channelName: string; lastSyncedAt: string | null } | null>(null);
-  const [syncing, setSyncing] = useState(false);
+  // Per-platform form state and publishing state
+  const [platformForms, setPlatformForms] = useState<Record<string, PlatformFormState>>({});
+  const [publishingPlatforms, setPublishingPlatforms] = useState<Set<string>>(new Set());
+  const [publishErrors, setPublishErrors] = useState<Record<string, string>>({});
 
-  // Publish options
-  const [caption, setCaption] = useState('');
-  const [hashtags, setHashtags] = useState('');
-  const [publishing, setPublishing] = useState(false);
-  const [publishError, setPublishError] = useState('');
+  const defaultsAppliedRef = useRef(false);
 
   const fetchVideo = useCallback(async () => {
     try {
@@ -75,27 +120,21 @@ export default function VideoDetailPage() {
       if (!res.ok) throw new Error('Failed to load video');
       const data: Video = await res.json();
       setVideo(data);
-      if (!caption && data.title) {
-        setCaption(data.title);
-      }
-      if (!hashtags && data.description) {
-        const desc = data.description.trim();
-        // Extract #Hashtags from anywhere in the description
-        const hashtagMatches = desc.match(/#(\w+)/g);
-        if (hashtagMatches && hashtagMatches.length >= 2) {
-          const parsed = hashtagMatches
-            .map((t) => t.replace(/^#/, ''))
-            .slice(0, 4);
-          setHashtags(parsed.join(', '));
-        } else {
-          // Fallback: last line is comma-separated keywords
-          const lines = desc.split('\n');
-          const lastLine = lines[lines.length - 1].trim();
-          const parts = lastLine.split(',').map((t) => t.trim());
-          if (parts.length >= 2 && parts.every((p) => /^[\w][\w\s]*$/.test(p))) {
-            setHashtags(parts.slice(0, 4).join(', '));
-          }
+
+      // Apply defaults once
+      if (!defaultsAppliedRef.current && data.title) {
+        const defaults = extractDefaults(data);
+        const initialForms: Record<string, PlatformFormState> = {};
+        for (const [key] of PUBLISH_PLATFORMS) {
+          initialForms[key] = {
+            title: defaults.caption,
+            description: defaults.caption,
+            tags: defaults.tags,
+            visibility: 'public',
+          };
         }
+        setPlatformForms(initialForms);
+        defaultsAppliedRef.current = true;
       }
       if (data.duration && !endTime) {
         setEndTime(formatDuration(data.duration));
@@ -107,62 +146,30 @@ export default function VideoDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [id, endTime, caption, hashtags]);
+  }, [id, endTime]);
 
   // Initial fetch
   useEffect(() => {
     fetchVideo();
   }, [fetchVideo]);
 
-  // Check TikTok connection
+  // Fetch account status for all platforms
   useEffect(() => {
-    async function checkTikTok() {
+    async function fetchAccounts() {
       try {
-        const res = await fetch('/api/accounts/tiktok');
+        const res = await fetch('/api/accounts/status');
         if (res.ok) {
           const data = await res.json();
-          setTiktokConnected(data.connected);
+          setAccounts(data.accounts || {});
         }
       } catch {
-        setTiktokConnected(false);
+        // Silently fail; cards will show as not connected
+      } finally {
+        setAccountsLoading(false);
       }
     }
-    checkTikTok();
+    fetchAccounts();
   }, []);
-
-  // Check YouTube connection
-  useEffect(() => {
-    async function checkYouTube() {
-      try {
-        const res = await fetch('/api/accounts/youtube');
-        if (res.ok) {
-          const data = await res.json();
-          setYoutubeConnected(data.connected);
-          setYoutubeChannel(data.channel);
-        }
-      } catch {
-        setYoutubeConnected(false);
-      }
-    }
-    checkYouTube();
-  }, []);
-
-  async function handleYouTubeSync() {
-    setSyncing(true);
-    try {
-      const res = await fetch('/api/youtube/sync', { method: 'POST' });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Sync failed');
-      }
-      // Refresh video data after sync is queued
-      setTimeout(() => fetchVideo(), 3000);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Sync failed');
-    } finally {
-      setSyncing(false);
-    }
-  }
 
   // Poll while processing/downloading
   useEffect(() => {
@@ -227,19 +234,58 @@ export default function VideoDetailPage() {
     }
   }
 
-  async function handlePublish() {
-    setPublishing(true);
-    setPublishError('');
+  function updatePlatformForm(platform: string, field: keyof PlatformFormState, value: string) {
+    setPlatformForms((prev) => ({
+      ...prev,
+      [platform]: {
+        ...(prev[platform] || { title: '', description: '', tags: '', visibility: 'public' }),
+        [field]: value,
+      },
+    }));
+  }
+
+  // YOUTUBE_SHORTS shares the YOUTUBE account
+  function getAccountForPlatform(platform: string): AccountInfo | undefined {
+    const direct = accounts[platform];
+    if (direct?.connected) return direct;
+    // Fallback: YOUTUBE_SHORTS uses YOUTUBE auth
+    if (platform === 'YOUTUBE_SHORTS') return accounts['YOUTUBE'];
+    return direct;
+  }
+
+  function getPostForPlatform(platform: string): Post | undefined {
+    return video?.posts?.find((p) => p.platform === platform);
+  }
+
+  async function handlePublish(platform: string) {
+    setPublishingPlatforms((prev) => new Set(prev).add(platform));
+    setPublishErrors((prev) => ({ ...prev, [platform]: '' }));
+
+    const form = platformForms[platform] || { title: '', description: '', tags: '', visibility: 'public' };
+    const config = PLATFORM_CONFIG[platform];
+
     try {
-      const hashtagList = hashtags
+      const hashtagList = form.tags
         .split(',')
         .map((t) => t.trim())
         .filter(Boolean);
 
+      // Build caption from available fields
+      let caption = '';
+      if (config.postFields.title) caption = form.title;
+      else if (config.postFields.description) caption = form.description;
+
       const res = await fetch(`/api/videos/${id}/publish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform: 'TIKTOK', caption, hashtags: hashtagList }),
+        body: JSON.stringify({
+          platform,
+          caption,
+          hashtags: hashtagList,
+          title: form.title,
+          description: form.description,
+          visibility: form.visibility,
+        }),
       });
 
       if (!res.ok) {
@@ -250,15 +296,26 @@ export default function VideoDetailPage() {
       // Poll until post status resolves
       const poll = setInterval(async () => {
         const updated = await fetchVideo();
-        const p = updated?.posts?.[0];
+        const p = updated?.posts?.find((post) => post.platform === platform);
         if (p && p.status !== 'UPLOADING') {
           clearInterval(poll);
-          setPublishing(false);
+          setPublishingPlatforms((prev) => {
+            const next = new Set(prev);
+            next.delete(platform);
+            return next;
+          });
         }
       }, 3000);
     } catch (err: unknown) {
-      setPublishError(err instanceof Error ? err.message : 'Something went wrong');
-      setPublishing(false);
+      setPublishErrors((prev) => ({
+        ...prev,
+        [platform]: err instanceof Error ? err.message : 'Something went wrong',
+      }));
+      setPublishingPlatforms((prev) => {
+        const next = new Set(prev);
+        next.delete(platform);
+        return next;
+      });
     }
   }
 
@@ -269,8 +326,6 @@ export default function VideoDetailPage() {
   if (!video) {
     return <div className={styles.error}>{error || 'Video not found'}</div>;
   }
-
-  const post = video.posts?.[0];
 
   return (
     <div className={styles.container}>
@@ -319,7 +374,7 @@ export default function VideoDetailPage() {
             </div>
           )}
 
-          {/* Pending state — needs download & processing */}
+          {/* Pending state -- needs download & processing */}
           {video.status === 'PENDING' && (
             <div className={styles.card}>
               <p>This video hasn&apos;t been processed yet.</p>
@@ -413,124 +468,142 @@ export default function VideoDetailPage() {
           )}
         </div>
 
-        {/* Right column: publish */}
+        {/* Right column: publish cards */}
         <div className={styles.sidebar}>
-          <div className={styles.card}>
-            <h2 className={styles.sectionTitle}>Publish to TikTok</h2>
+          {accountsLoading ? (
+            <div className={styles.card}>
+              <p className={styles.loadingText}>Loading accounts...</p>
+            </div>
+          ) : (
+            PUBLISH_PLATFORMS.map(([platformKey, config]) => {
+              const account = getAccountForPlatform(platformKey);
+              const isConnected = account?.connected === true;
+              const post = getPostForPlatform(platformKey);
+              const isPublishing = publishingPlatforms.has(platformKey);
+              const publishError = publishErrors[platformKey];
+              const form = platformForms[platformKey] || { title: '', description: '', tags: '', visibility: 'public' };
+              const authRoute = PLATFORM_AUTH_ROUTE[platformKey];
 
-            {tiktokConnected === false && (
-              <div className={styles.connectPrompt}>
-                <p>Connect your TikTok account to publish videos.</p>
-                <button
-                  className="btn-primary"
-                  style={{ width: '100%' }}
-                  onClick={() => {
-                    window.location.href = `/api/auth/tiktok/link?returnTo=${encodeURIComponent(window.location.pathname)}`;
-                  }}
-                >
-                  Connect TikTok
-                </button>
-              </div>
-            )}
+              return (
+                <div className={styles.card} key={platformKey}>
+                  <h2 className={styles.sectionTitle}>{config.displayName}</h2>
 
-            {tiktokConnected === true && (
-              <>
-                <div className={styles.connectedBadge}>TikTok connected</div>
+                  {!isConnected && (
+                    <div className={styles.connectPrompt}>
+                      <p>Connect your {config.displayName} account to publish videos.</p>
+                      {authRoute ? (
+                        <button
+                          className="btn-primary"
+                          style={{ width: '100%' }}
+                          onClick={() => {
+                            window.location.href = `/api/auth/${authRoute}/link?returnTo=${encodeURIComponent(window.location.pathname)}`;
+                          }}
+                        >
+                          Connect {config.displayName}
+                        </button>
+                      ) : (
+                        <button
+                          className="btn-secondary"
+                          style={{ width: '100%' }}
+                          disabled
+                        >
+                          Coming Soon
+                        </button>
+                      )}
+                    </div>
+                  )}
 
-                <div className={styles.field}>
-                  <label>Caption</label>
-                  <textarea
-                    rows={3}
-                    value={caption}
-                    onChange={(e) => setCaption(e.target.value)}
-                    placeholder="Write a caption for your TikTok..."
-                    className={styles.textarea}
-                  />
+                  {isConnected && (
+                    <>
+                      <div className={styles.connectedBadge}>
+                        {account.displayName || account.handle || `${config.displayName} connected`}
+                      </div>
+
+                      {config.postFields.title && (
+                        <div className={styles.field}>
+                          <label>Title</label>
+                          <input
+                            type="text"
+                            value={form.title}
+                            onChange={(e) => updatePlatformForm(platformKey, 'title', e.target.value)}
+                            placeholder={`Title for ${config.displayName}...`}
+                          />
+                        </div>
+                      )}
+
+                      {config.postFields.description && (
+                        <div className={styles.field} style={{ marginTop: '0.75rem' }}>
+                          <label>Description</label>
+                          <textarea
+                            rows={3}
+                            value={form.description}
+                            onChange={(e) => updatePlatformForm(platformKey, 'description', e.target.value)}
+                            placeholder={`Description for ${config.displayName}...`}
+                            className={styles.textarea}
+                          />
+                        </div>
+                      )}
+
+                      {config.postFields.tags && (
+                        <div className={styles.field} style={{ marginTop: '0.75rem' }}>
+                          <label>Hashtags (comma separated)</label>
+                          <input
+                            type="text"
+                            value={form.tags}
+                            onChange={(e) => updatePlatformForm(platformKey, 'tags', e.target.value)}
+                            placeholder="viral, fyp, clips"
+                          />
+                        </div>
+                      )}
+
+                      {config.postFields.visibility && (
+                        <div className={styles.field} style={{ marginTop: '0.75rem' }}>
+                          <label>Visibility</label>
+                          <select
+                            value={form.visibility}
+                            onChange={(e) => updatePlatformForm(platformKey, 'visibility', e.target.value)}
+                          >
+                            <option value="public">Public</option>
+                            <option value="unlisted">Unlisted</option>
+                            <option value="private">Private</option>
+                          </select>
+                        </div>
+                      )}
+
+                      <button
+                        className="btn-primary"
+                        style={{ marginTop: '1rem', width: '100%' }}
+                        onClick={() => handlePublish(platformKey)}
+                        disabled={
+                          isPublishing ||
+                          video.status !== 'READY' ||
+                          post?.status === 'UPLOADING' ||
+                          post?.status === 'POSTED'
+                        }
+                      >
+                        {isPublishing
+                          ? 'Publishing...'
+                          : post?.status === 'FAILED'
+                            ? `Retry Post to ${config.displayName}`
+                            : post?.status === 'POSTED'
+                              ? `Posted to ${config.displayName}`
+                              : `Post to ${config.displayName}`}
+                      </button>
+
+                      {publishError && <p className={styles.errorText}>{publishError}</p>}
+
+                      {post && (
+                        <div className={styles.postStatus}>
+                          <span className={styles.postLabel}>Post Status:</span>
+                          <StatusBadge status={post.status} />
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-
-                <div className={styles.field} style={{ marginTop: '0.75rem' }}>
-                  <label>Hashtags (comma separated)</label>
-                  <input
-                    type="text"
-                    value={hashtags}
-                    onChange={(e) => setHashtags(e.target.value)}
-                    placeholder="viral, fyp, clips"
-                  />
-                </div>
-
-                <button
-                  className="btn-primary"
-                  style={{ marginTop: '1rem', width: '100%' }}
-                  onClick={handlePublish}
-                  disabled={publishing || video.status !== 'READY' || post?.status === 'UPLOADING' || post?.status === 'POSTED'}
-                >
-                  {publishing ? 'Publishing...' : post?.status === 'FAILED' ? 'Retry Post to TikTok' : post?.status === 'POSTED' ? 'Posted to TikTok' : 'Post to TikTok'}
-                </button>
-
-                {publishError && <p className={styles.errorText}>{publishError}</p>}
-
-                {post && (
-                  <div className={styles.postStatus}>
-                    <span className={styles.postLabel}>Post Status:</span>
-                    <StatusBadge status={post.status} />
-                  </div>
-                )}
-              </>
-            )}
-
-            {tiktokConnected === null && (
-              <p className={styles.loadingText}>Checking connection...</p>
-            )}
-          </div>
-
-          {/* YouTube Integration */}
-          <div className={styles.card}>
-            <h2 className={styles.sectionTitle}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="#FF0000"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-              YouTube Channel
-            </h2>
-
-            {youtubeConnected === false && (
-              <div className={styles.connectPrompt}>
-                <p>Link your YouTube channel to auto-sync video metadata.</p>
-                <button
-                  className="btn-primary"
-                  style={{ width: '100%' }}
-                  onClick={() => {
-                    window.location.href = `/api/auth/youtube/link?returnTo=${encodeURIComponent(window.location.pathname)}`;
-                  }}
-                >
-                  Connect YouTube
-                </button>
-              </div>
-            )}
-
-            {youtubeConnected === true && youtubeChannel && (
-              <>
-                <div className={styles.connectedBadge} style={{ borderColor: '#ef4444', color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#ef4444"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-                  {youtubeChannel.channelName}
-                </div>
-                {youtubeChannel.lastSyncedAt && (
-                  <p className={styles.loadingText} style={{ marginBottom: '0.75rem' }}>
-                    Last synced: {new Date(youtubeChannel.lastSyncedAt).toLocaleString()}
-                  </p>
-                )}
-                <button
-                  className="btn-secondary"
-                  style={{ width: '100%' }}
-                  onClick={handleYouTubeSync}
-                  disabled={syncing}
-                >
-                  {syncing ? 'Syncing...' : 'Sync Videos'}
-                </button>
-              </>
-            )}
-
-            {youtubeConnected === null && (
-              <p className={styles.loadingText}>Checking connection...</p>
-            )}
-          </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>

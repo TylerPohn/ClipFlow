@@ -7,11 +7,12 @@ import { prisma } from '@clipflow/db';
  * Should be run as a repeatable job every 4 days.
  */
 export async function handleYouTubeSubscribe(job: Job<VideoJob>) {
-  const channels = await prisma.youTubeChannel.findMany({
-    select: { channelId: true },
+  const platformAccounts = await prisma.platformAccount.findMany({
+    where: { platform: 'YOUTUBE' },
+    select: { platformUserId: true },
   });
 
-  if (channels.length === 0) {
+  if (platformAccounts.length === 0) {
     console.log('No YouTube channels to re-subscribe');
     await job.updateProgress(100);
     return;
@@ -20,8 +21,8 @@ export async function handleYouTubeSubscribe(job: Job<VideoJob>) {
   const callbackUrl = `${process.env.NEXTAUTH_URL}/api/webhooks/youtube`;
   let succeeded = 0;
 
-  for (let i = 0; i < channels.length; i++) {
-    const { channelId } = channels[i];
+  for (let i = 0; i < platformAccounts.length; i++) {
+    const channelId = platformAccounts[i].platformUserId;
     const topicUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
 
     try {
@@ -46,8 +47,8 @@ export async function handleYouTubeSubscribe(job: Job<VideoJob>) {
       console.error(`PubSubHubbub subscribe error for ${channelId}:`, err);
     }
 
-    await job.updateProgress(Math.round(((i + 1) / channels.length) * 100));
+    await job.updateProgress(Math.round(((i + 1) / platformAccounts.length) * 100));
   }
 
-  console.log(`PubSubHubbub re-subscription complete: ${succeeded}/${channels.length} succeeded`);
+  console.log(`PubSubHubbub re-subscription complete: ${succeeded}/${platformAccounts.length} succeeded`);
 }

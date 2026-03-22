@@ -55,15 +55,15 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
     let platformPostId: string | undefined;
 
     try {
-      // Get TikTok access token from the user's account
-      const account = await prisma.account.findFirst({
+      // Get TikTok access token from PlatformAccount
+      const account = await prisma.platformAccount.findFirst({
         where: {
           userId: post.video.userId,
-          provider: 'tiktok',
+          platform: 'TIKTOK',
         },
       });
 
-      if (!account?.access_token) {
+      if (!account?.accessToken) {
         throw new Error('No TikTok account linked or access token missing');
       }
 
@@ -80,7 +80,7 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
         {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${account.access_token}`,
+            Authorization: `Bearer ${account.accessToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -146,7 +146,7 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
         {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${account.access_token}`,
+            Authorization: `Bearer ${account.accessToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ publish_id: platformPostId }),

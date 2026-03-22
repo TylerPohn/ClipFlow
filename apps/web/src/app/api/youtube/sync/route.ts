@@ -12,20 +12,22 @@ export async function POST() {
 
   const userId = (session.user as { id: string }).id;
 
-  const channel = await prisma.youTubeChannel.findFirst({
-    where: { userId },
+  const platformAccount = await prisma.platformAccount.findFirst({
+    where: { userId, platform: 'YOUTUBE' },
   });
 
-  if (!channel) {
+  if (!platformAccount) {
     return NextResponse.json({ error: 'No YouTube channel linked' }, { status: 400 });
   }
 
-  await videoQueue.add(`youtube-sync-${channel.channelId}`, {
+  const channelId = platformAccount.platformUserId;
+
+  await videoQueue.add(`youtube-sync-${channelId}`, {
     type: JobType.YOUTUBE_SYNC,
     videoId: '',
     userId,
-    options: { channelId: channel.channelId },
+    options: { channelId, platformAccountId: platformAccount.id },
   });
 
-  return NextResponse.json({ status: 'sync_queued', channelId: channel.channelId });
+  return NextResponse.json({ status: 'sync_queued', channelId });
 }

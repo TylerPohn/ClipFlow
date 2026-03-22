@@ -27,6 +27,8 @@ export enum JobType {
   UPLOAD = 'UPLOAD',
   YOUTUBE_SYNC = 'YOUTUBE_SYNC',
   YOUTUBE_SUBSCRIBE = 'YOUTUBE_SUBSCRIBE',
+  PLATFORM_SYNC = 'PLATFORM_SYNC',
+  PLATFORM_SUBSCRIBE = 'PLATFORM_SUBSCRIBE',
 }
 
 export interface VideoJob {
@@ -35,6 +37,14 @@ export interface VideoJob {
   userId: string;
   sourceUrl?: string;
   options?: Record<string, unknown>;
+}
+
+export interface PlatformSyncJob {
+  type: JobType.PLATFORM_SYNC;
+  data: {
+    platformAccountId: string;
+    specificVideoId?: string;
+  };
 }
 
 export interface TranscriptWord {

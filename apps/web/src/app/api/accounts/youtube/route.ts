@@ -10,20 +10,32 @@ export async function GET() {
 
   const userId = (session.user as { id: string }).id;
 
-  const channel = await prisma.youTubeChannel.findFirst({
-    where: { userId },
+  const platformAccount = await prisma.platformAccount.findFirst({
+    where: { userId, platform: 'YOUTUBE' },
     select: {
       id: true,
-      channelId: true,
-      channelName: true,
-      channelHandle: true,
-      thumbnailUrl: true,
+      platformUserId: true,
+      displayName: true,
+      handle: true,
+      avatarUrl: true,
       lastSyncedAt: true,
     },
   });
 
+  // Return same shape as before for frontend compatibility
+  const channel = platformAccount
+    ? {
+        id: platformAccount.id,
+        channelId: platformAccount.platformUserId,
+        channelName: platformAccount.displayName,
+        channelHandle: platformAccount.handle,
+        thumbnailUrl: platformAccount.avatarUrl,
+        lastSyncedAt: platformAccount.lastSyncedAt,
+      }
+    : null;
+
   return NextResponse.json({
     connected: !!channel,
-    channel: channel ?? null,
+    channel,
   });
 }

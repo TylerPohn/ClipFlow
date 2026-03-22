@@ -7,6 +7,8 @@ import { handleTranscribe } from './handlers/transcribe';
 import { handleUpload } from './handlers/upload';
 import { handleYouTubeSync } from './handlers/youtube-sync';
 import { handleYouTubeSubscribe } from './handlers/youtube-subscribe';
+import { handlePlatformSync } from './handlers/platform-sync';
+import { handlePlatformSubscribe } from './handlers/platform-subscribe';
 
 const redisUrl = new URL(
   process.env.REDIS_URL ?? 'redis://localhost:6379'
@@ -35,6 +37,10 @@ const worker = new Worker<VideoJob>(
         return handleYouTubeSync(job);
       case JobType.YOUTUBE_SUBSCRIBE:
         return handleYouTubeSubscribe(job);
+      case JobType.PLATFORM_SYNC:
+        return handlePlatformSync(job);
+      case JobType.PLATFORM_SUBSCRIBE:
+        return handlePlatformSubscribe(job);
       default:
         throw new Error(`Unknown job type: ${(job.data as VideoJob).type}`);
     }

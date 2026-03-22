@@ -5,21 +5,29 @@ import { prisma } from '@clipflow/db';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 
-async function refreshAccessToken(accountId: string): Promise<string> {
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account?.access_token) {
+async function refreshAccessToken(platformAccountId: string): Promise<string> {
+  const platformAccount = await prisma.platformAccount.findUnique({
+    where: { id: platformAccountId },
+  });
+  if (!platformAccount?.accessToken) {
     throw new Error('Missing YouTube access token');
   }
 
-  const now = Math.floor(Date.now() / 1000);
-  if (account.expires_at && account.expires_at < now + 300 && account.refresh_token) {
+  const now = new Date();
+  const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+
+  if (
+    platformAccount.tokenExpiresAt &&
+    platformAccount.tokenExpiresAt < fiveMinutesFromNow &&
+    platformAccount.refreshToken
+  ) {
     const res = await fetch(GOOGLE_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         client_id: process.env.GOOGLE_CLIENT_ID!,
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        refresh_token: account.refresh_token,
+        refresh_token: platformAccount.refreshToken,
         grant_type: 'refresh_token',
       }),
     });
@@ -27,19 +35,19 @@ async function refreshAccessToken(accountId: string): Promise<string> {
     if (!res.ok) throw new Error(`Token refresh failed: ${res.status}`);
     const data = await res.json();
 
-    await prisma.account.update({
-      where: { id: accountId },
+    await prisma.platformAccount.update({
+      where: { id: platformAccountId },
       data: {
-        access_token: data.access_token,
-        expires_at: Math.floor(Date.now() / 1000) + data.expires_in,
-        ...(data.refresh_token ? { refresh_token: data.refresh_token } : {}),
+        accessToken: data.access_token,
+        tokenExpiresAt: new Date(Date.now() + data.expires_in * 1000),
+        ...(data.refresh_token ? { refreshToken: data.refresh_token } : {}),
       },
     });
 
     return data.access_token;
   }
 
-  return account.access_token;
+  return platformAccount.accessToken;
 }
 
 function parseDuration(iso: string): number {
@@ -55,21 +63,31 @@ function parseDuration(iso: string): number {
 export async function handleYouTubeSync(job: Job<VideoJob>) {
   const { userId, options } = job.data;
   const channelId = options?.channelId as string;
+  const platformAccountId = options?.platformAccountId as string | undefined;
   const specificVideoId = options?.specificVideoId as string | undefined;
 
   if (!channelId) throw new Error('Missing channelId in job options');
 
-  const channel = await prisma.youTubeChannel.findUnique({ where: { channelId } });
-  if (!channel) throw new Error(`YouTube channel ${channelId} not found`);
+  // Find PlatformAccount — prefer by ID if provided, otherwise look up by channelId
+  let platformAccount;
+  if (platformAccountId) {
+    platformAccount = await prisma.platformAccount.findUnique({
+      where: { id: platformAccountId },
+    });
+  }
+  if (!platformAccount) {
+    platformAccount = await prisma.platformAccount.findFirst({
+      where: { userId, platform: 'YOUTUBE', platformUserId: channelId },
+    });
+  }
+  if (!platformAccount) throw new Error(`YouTube PlatformAccount for channel ${channelId} not found`);
 
-  const account = await prisma.account.findFirst({
-    where: { userId, provider: 'google-youtube' },
-  });
-  if (!account) throw new Error('No YouTube account linked');
-
-  const accessToken = await refreshAccessToken(account.id);
+  const accessToken = await refreshAccessToken(platformAccount.id);
 
   await job.updateProgress(10);
+
+  const metadata = platformAccount.metadata as { uploadsPlaylistId?: string } | null;
+  const uploadsPlaylistId = metadata?.uploadsPlaylistId;
 
   let videoIds: string[];
 
@@ -77,9 +95,13 @@ export async function handleYouTubeSync(job: Job<VideoJob>) {
     // Sync a single video (from PubSubHubbub notification)
     videoIds = [specificVideoId];
   } else {
+    if (!uploadsPlaylistId) {
+      throw new Error('Missing uploadsPlaylistId in PlatformAccount metadata');
+    }
+
     // Full sync: list all videos from uploads playlist
     const playlistRes = await fetch(
-      `${YOUTUBE_API_BASE}/playlistItems?part=contentDetails&playlistId=${channel.uploadsPlaylistId}&maxResults=50`,
+      `${YOUTUBE_API_BASE}/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
 
@@ -159,9 +181,9 @@ export async function handleYouTubeSync(job: Job<VideoJob>) {
     }
   }
 
-  // Update last synced timestamp
-  await prisma.youTubeChannel.update({
-    where: { channelId },
+  // Update last synced timestamp on PlatformAccount
+  await prisma.platformAccount.update({
+    where: { id: platformAccount.id },
     data: { lastSyncedAt: new Date() },
   });
 
