@@ -98,21 +98,35 @@ export default function NewMigrationPage() {
     fetchAccounts();
   }, [authStatus]);
 
-  // Fetch videos when entering step 2
+  // Fetch user's ClipFlow videos that are READY
   const fetchVideos = useCallback(async () => {
     if (!sourcePlatform) return;
     setVideosLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/platforms/${sourcePlatform}/videos`);
+      const res = await fetch('/api/videos');
       if (!res.ok) throw new Error('Failed to fetch videos');
       const data = await res.json();
-      const videoList: Video[] = (data.videos ?? data).map((v: Video & { posts?: Array<{ platform: string; status: string }> }) => ({
-        ...v,
-        alreadyPosted: v.posts?.some(
-          (p: { platform: string; status: string }) => p.platform === destPlatform && p.status === 'POSTED'
-        ) ?? false,
-      }));
+      // Filter to READY videos only, and check if already posted to dest platform
+      const videoList: Video[] = (data as Array<{
+        id: string;
+        title: string;
+        thumbnailUrl: string | null;
+        duration: number | null;
+        status: string;
+        sourceUrl: string;
+        posts?: Array<{ platform: string; status: string }>;
+      }>)
+        .filter((v) => v.status === 'READY')
+        .map((v) => ({
+          id: v.id,
+          title: v.title,
+          thumbnailUrl: v.thumbnailUrl,
+          duration: v.duration,
+          alreadyPosted: v.posts?.some(
+            (p) => p.platform === destPlatform && p.status === 'POSTED'
+          ) ?? false,
+        }));
       setVideos(videoList);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load videos');
