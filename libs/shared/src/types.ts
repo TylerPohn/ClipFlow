@@ -20,6 +20,13 @@ export enum Platform {
   YOUTUBE_SHORTS = 'YOUTUBE_SHORTS',
 }
 
+export enum MigrationStatus {
+  ACTIVE = 'ACTIVE',
+  PAUSED = 'PAUSED',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+}
+
 export enum JobType {
   DOWNLOAD = 'DOWNLOAD',
   PROCESS = 'PROCESS',
@@ -29,6 +36,7 @@ export enum JobType {
   YOUTUBE_SUBSCRIBE = 'YOUTUBE_SUBSCRIBE',
   PLATFORM_SYNC = 'PLATFORM_SYNC',
   PLATFORM_SUBSCRIBE = 'PLATFORM_SUBSCRIBE',
+  SCHEDULE_CHECK = 'SCHEDULE_CHECK',
 }
 
 export interface VideoJob {

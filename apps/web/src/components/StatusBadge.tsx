@@ -2,7 +2,7 @@
 
 import styles from './StatusBadge.module.css';
 
-type Status = 'PENDING' | 'DOWNLOADING' | 'PROCESSING' | 'READY' | 'FAILED' | 'DRAFT' | 'UPLOADING' | 'POSTED' | 'SCHEDULED';
+type Status = 'PENDING' | 'DOWNLOADING' | 'PROCESSING' | 'READY' | 'FAILED' | 'DRAFT' | 'UPLOADING' | 'POSTED' | 'SCHEDULED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
 
 const statusColors: Record<Status, string> = {
   PENDING: 'yellow',
@@ -14,6 +14,10 @@ const statusColors: Record<Status, string> = {
   UPLOADING: 'blue',
   POSTED: 'green',
   SCHEDULED: 'blue',
+  ACTIVE: 'green',
+  PAUSED: 'yellow',
+  COMPLETED: 'green',
+  CANCELLED: 'red',
 };
 
 export default function StatusBadge({ status }: { status: Status }) {

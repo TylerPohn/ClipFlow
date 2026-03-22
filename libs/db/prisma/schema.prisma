@@ -19,6 +19,7 @@ model User {
   videos          Video[]
   youtubeChannels  YouTubeChannel[]
   platformAccounts PlatformAccount[] @relation("platformAccounts")
+  migrations      Migration[]
 }
 
 model Account {
@@ -78,6 +79,13 @@ enum PostStatus {
   POSTED
   FAILED
   SCHEDULED
+}
+
+enum MigrationStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
 }
 
 model Video {
@@ -156,6 +164,30 @@ model Post {
   scheduledAt    DateTime?
   postedAt       DateTime?
   createdAt      DateTime   @default(now())
+  migrationId    String?
 
-  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  video     Video      @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  migration Migration? @relation(fields: [migrationId], references: [id])
+
+  @@index([migrationId])
+  @@index([status, scheduledAt])
+}
+
+model Migration {
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String?
+  sourcePlatform  Platform
+  destPlatform    Platform
+  status          MigrationStatus @default(ACTIVE)
+  cadence         Json
+  defaultCaption  String?         @db.Text
+  defaultHashtags String[]
+  defaultSettings Json?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  posts           Post[]
+
+  @@index([userId])
 }

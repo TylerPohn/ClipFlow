@@ -1,0 +1,451 @@
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.header {
+  margin-bottom: 2rem;
+}
+
+.header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.header p {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-top: 0.375rem;
+}
+
+.steps {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 2rem;
+}
+
+.step {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--bg-tertiary);
+  transition: background-color 0.2s ease;
+}
+
+.stepActive {
+  background-color: var(--accent);
+}
+
+.stepDone {
+  background-color: var(--success);
+}
+
+.stepLabel {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+.stepLabelActive {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+}
+
+.cardTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 0.375rem;
+}
+
+.cardSubtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.fieldGroup {
+  margin-bottom: 1.25rem;
+}
+
+.fieldGroup label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.375rem;
+  color: var(--text-secondary);
+}
+
+.fieldGroup input,
+.fieldGroup select,
+.fieldGroup textarea {
+  width: 100%;
+}
+
+.fieldGroup textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.fieldHint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+.selectGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.platformOption {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  background: var(--bg-tertiary);
+}
+
+.platformOption:hover {
+  border-color: var(--text-muted);
+}
+
+.platformOptionSelected {
+  border-color: var(--accent);
+  background-color: rgba(99, 102, 241, 0.1);
+}
+
+.platformOptionName {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.platformOptionStatus {
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.connected {
+  color: var(--success);
+}
+
+.notConnected {
+  color: var(--text-muted);
+}
+
+.arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: var(--text-muted);
+  padding: 1rem 0;
+}
+
+.videoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.videoItem {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+  background: var(--bg-tertiary);
+  position: relative;
+}
+
+.videoItem:hover {
+  border-color: var(--text-muted);
+}
+
+.videoItemSelected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.videoThumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background-color: var(--bg-primary);
+  display: block;
+}
+
+.videoInfo {
+  padding: 0.75rem;
+}
+
+.videoTitle {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.videoDuration {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+.videoCheck {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: transparent;
+}
+
+.videoCheckSelected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.alreadyPosted {
+  font-size: 0.6875rem;
+  color: var(--success);
+  margin-top: 0.25rem;
+}
+
+.searchBar {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.searchBar input {
+  flex: 1;
+}
+
+.selectAllBtn {
+  padding: 0.5rem 1rem;
+  font-size: 0.8125rem;
+  border-radius: var(--radius);
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
+}
+
+.selectAllBtn:hover {
+  background-color: var(--border);
+}
+
+.selectedCount {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.timeSlots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.timeSlotRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.timeSlotRow input {
+  width: 120px;
+}
+
+.removeSlotBtn {
+  padding: 0.375rem 0.625rem;
+  font-size: 0.8125rem;
+  border-radius: var(--radius);
+  background-color: transparent;
+  color: var(--error);
+  border: 1px solid var(--error);
+  cursor: pointer;
+}
+
+.removeSlotBtn:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.addSlotBtn {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  border-radius: var(--radius);
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  align-self: flex-start;
+  margin-top: 0.25rem;
+}
+
+.addSlotBtn:hover {
+  background-color: var(--border);
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.checkboxRow input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.inlineField {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.inlineField input {
+  width: 80px;
+}
+
+.previewList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.previewDate {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.375rem;
+  padding-bottom: 0.375rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.previewItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.previewThumb {
+  width: 60px;
+  height: 34px;
+  border-radius: 4px;
+  object-fit: cover;
+  background-color: var(--bg-tertiary);
+  flex-shrink: 0;
+}
+
+.previewMeta {
+  flex: 1;
+  min-width: 0;
+}
+
+.previewTitle {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.previewTime {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.previewSummary {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--radius);
+}
+
+.previewStat {
+  text-align: center;
+}
+
+.previewStatValue {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.previewStatLabel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.5rem;
+}
+
+.footerRight {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.error {
+  color: var(--error);
+  font-size: 0.8125rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background-color: rgba(239, 68, 68, 0.1);
+  border-radius: var(--radius);
+}
+
+.loading {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 4rem 0;
+}
+
+.emptyVideos {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-secondary);
+}

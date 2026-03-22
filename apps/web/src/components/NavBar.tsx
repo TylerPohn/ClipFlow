@@ -66,6 +66,9 @@ export default function NavBar() {
                   </div>
                 )}
               </div>
+              <Link href="/dashboard/migrations" className={styles.link}>
+                Migrations
+              </Link>
               <Link href="/dashboard/accounts" className={styles.link}>
                 Accounts
               </Link>
