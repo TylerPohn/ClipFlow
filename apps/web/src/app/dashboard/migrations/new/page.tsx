@@ -16,6 +16,8 @@ interface AccountStatus {
   displayName?: string | null;
 }
 
+type SortOrder = 'newest' | 'oldest' | 'title-az' | 'title-za' | 'shortest' | 'longest';
+
 interface PlatformVideo {
   videoId: string;
   title: string;
@@ -24,6 +26,7 @@ interface PlatformVideo {
   clipflowVideoId: string | null;
   imported: boolean;
   description?: string;
+  publishedAt?: string;
 }
 
 interface PreviewItem {
@@ -57,6 +60,7 @@ export default function NewMigrationPage() {
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
   const scrollSentinelRef = useRef<HTMLDivElement>(null);
 
   // Step 3: Default Settings
@@ -129,7 +133,7 @@ export default function NewMigrationPage() {
       if (!res.ok) throw new Error('Failed to fetch videos');
       const data = await res.json();
       const newVideos: PlatformVideo[] = (data.videos ?? []).map(
-        (v: PlatformVideo) => ({
+        (v: PlatformVideo & { publishedAt?: string }) => ({
           videoId: v.videoId,
           title: v.title,
           thumbnailUrl: v.thumbnailUrl,
@@ -137,6 +141,7 @@ export default function NewMigrationPage() {
           clipflowVideoId: v.clipflowVideoId ?? null,
           imported: v.imported ?? false,
           description: v.description,
+          publishedAt: v.publishedAt,
         })
       );
       if (isFirstPage) {
@@ -172,9 +177,9 @@ export default function NewMigrationPage() {
     return () => observer.disconnect();
   }, [step, nextPageToken, loadingMore, fetchVideos]);
 
-  // Build selected videos data for API calls
+  // Build selected videos data for API calls, preserving sort order
   function getSelectedVideos() {
-    return videos
+    return sortVideos(videos)
       .filter((v) => selectedVideoIds.has(v.videoId))
       .map((v) => ({
         youtubeVideoId: v.videoId,
@@ -320,10 +325,37 @@ export default function NewMigrationPage() {
     }
   }
 
+  function sortVideos(list: PlatformVideo[]): PlatformVideo[] {
+    const sorted = [...list];
+    switch (sortOrder) {
+      case 'oldest':
+        return sorted.sort((a, b) =>
+          (a.publishedAt ?? '').localeCompare(b.publishedAt ?? '')
+        );
+      case 'newest':
+        return sorted.sort((a, b) =>
+          (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '')
+        );
+      case 'title-az':
+        return sorted.sort((a, b) => a.title.localeCompare(b.title));
+      case 'title-za':
+        return sorted.sort((a, b) => b.title.localeCompare(a.title));
+      case 'shortest':
+        return sorted.sort((a, b) => (a.duration ?? 0) - (b.duration ?? 0));
+      case 'longest':
+        return sorted.sort((a, b) => (b.duration ?? 0) - (a.duration ?? 0));
+      default:
+        return sorted;
+    }
+  }
+
   function filteredVideos(): PlatformVideo[] {
-    if (!searchQuery.trim()) return videos;
-    const q = searchQuery.toLowerCase();
-    return videos.filter((v) => v.title.toLowerCase().includes(q));
+    let list = videos;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((v) => v.title.toLowerCase().includes(q));
+    }
+    return sortVideos(list);
   }
 
   function formatDuration(seconds: number | null): string {
@@ -484,6 +516,18 @@ export default function NewMigrationPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
+                <select
+                  className={styles.sortSelect}
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="title-az">Title A-Z</option>
+                  <option value="title-za">Title Z-A</option>
+                  <option value="shortest">Shortest</option>
+                  <option value="longest">Longest</option>
+                </select>
                 <button className={styles.selectAllBtn} onClick={toggleSelectAll}>
                   {filteredVideos().every((v) => selectedVideoIds.has(v.videoId))
                     ? 'Deselect All'
