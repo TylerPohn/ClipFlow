@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth';
-import { prisma } from '@clipflow/db';
 import { Platform } from '@clipflow/shared';
 
 interface CadenceConfig {
@@ -9,10 +8,16 @@ interface CadenceConfig {
   skipWeekends: boolean;
 }
 
+interface SourceVideo {
+  youtubeVideoId: string;
+  clipflowVideoId?: string | null;
+  title: string;
+}
+
 interface PreviewBody {
   sourcePlatform: string;
   destPlatform: string;
-  videoIds: string[];
+  videos: SourceVideo[];
   cadence: CadenceConfig;
   startDate: string;
   defaultCaption?: string;
@@ -20,17 +25,17 @@ interface PreviewBody {
 }
 
 function generateSchedule(
-  videoIds: string[],
+  videos: SourceVideo[],
   cadence: CadenceConfig,
   startDate: string
-): { videoId: string; scheduledAt: Date }[] {
-  const schedule: { videoId: string; scheduledAt: Date }[] = [];
+): { video: SourceVideo; scheduledAt: Date }[] {
+  const schedule: { video: SourceVideo; scheduledAt: Date }[] = [];
   const { timeSlots, skipWeekends } = cadence;
 
   let currentDate = new Date(startDate + 'T00:00:00Z');
   let slotIndex = 0;
 
-  for (const videoId of videoIds) {
+  for (const video of videos) {
     if (skipWeekends) {
       while (currentDate.getUTCDay() === 0 || currentDate.getUTCDay() === 6) {
         currentDate.setUTCDate(currentDate.getUTCDate() + 1);
@@ -41,7 +46,7 @@ function generateSchedule(
     const scheduledAt = new Date(currentDate);
     scheduledAt.setUTCHours(hours, minutes, 0, 0);
 
-    schedule.push({ videoId, scheduledAt });
+    schedule.push({ video, scheduledAt });
 
     slotIndex++;
     if (slotIndex >= timeSlots.length) {
@@ -64,7 +69,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const userId = (session.user as { id: string }).id;
   const body = (await request.json()) as PreviewBody;
 
   if (
@@ -81,7 +85,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid destination platform' }, { status: 400 });
   }
 
-  if (!body.videoIds || body.videoIds.length === 0) {
+  if (!body.videos || body.videos.length === 0) {
     return NextResponse.json({ error: 'No videos selected' }, { status: 400 });
   }
 
@@ -93,35 +97,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Start date is required' }, { status: 400 });
   }
 
-  // Fetch videos to get titles for preview
-  const videos = await prisma.video.findMany({
-    where: {
-      id: { in: body.videoIds },
-      userId,
-    },
-    select: { id: true, title: true },
-  });
+  const schedule = generateSchedule(body.videos, body.cadence, body.startDate);
 
-  if (videos.length !== body.videoIds.length) {
-    return NextResponse.json(
-      { error: 'Some videos were not found or do not belong to you' },
-      { status: 400 }
-    );
-  }
-
-  const videoMap = new Map(videos.map((v) => [v.id, v]));
-  const schedule = generateSchedule(body.videoIds, body.cadence, body.startDate);
-
-  const preview = schedule.map((entry) => {
-    const video = videoMap.get(entry.videoId)!;
-    return {
-      videoId: entry.videoId,
-      videoTitle: video.title,
-      caption: resolveCaption(body.defaultCaption, video.title),
-      hashtags: body.defaultHashtags ?? [],
-      scheduledAt: entry.scheduledAt,
-    };
-  });
+  const preview = schedule.map((entry) => ({
+    youtubeVideoId: entry.video.youtubeVideoId,
+    videoTitle: entry.video.title,
+    caption: resolveCaption(body.defaultCaption, entry.video.title),
+    hashtags: body.defaultHashtags ?? [],
+    scheduledAt: entry.scheduledAt,
+  }));
 
   return NextResponse.json(preview);
 }

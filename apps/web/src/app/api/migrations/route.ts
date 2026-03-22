@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth';
 import { prisma } from '@clipflow/db';
-import { MigrationStatus, Platform, PostStatus } from '@clipflow/shared';
+import { MigrationStatus, Platform, PostStatus, VideoStatus } from '@clipflow/shared';
 
 interface CadenceConfig {
   videosPerDay: number;
@@ -9,10 +9,19 @@ interface CadenceConfig {
   skipWeekends: boolean;
 }
 
+interface SourceVideo {
+  youtubeVideoId: string;
+  clipflowVideoId?: string | null;
+  title: string;
+  description?: string;
+  thumbnailUrl?: string | null;
+  duration?: number | null;
+}
+
 interface CreateMigrationBody {
   sourcePlatform: string;
   destPlatform: string;
-  videoIds: string[];
+  videos: SourceVideo[];
   cadence: CadenceConfig;
   startDate: string;
   defaultCaption?: string;
@@ -85,7 +94,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid destination platform' }, { status: 400 });
   }
 
-  if (!body.videoIds || body.videoIds.length === 0) {
+  if (!body.videos || body.videos.length === 0) {
     return NextResponse.json({ error: 'No videos selected' }, { status: 400 });
   }
 
@@ -95,21 +104,6 @@ export async function POST(request: Request) {
 
   if (!body.startDate) {
     return NextResponse.json({ error: 'Start date is required' }, { status: 400 });
-  }
-
-  // Validate all videos exist and belong to user
-  const videos = await prisma.video.findMany({
-    where: {
-      id: { in: body.videoIds },
-      userId,
-    },
-  });
-
-  if (videos.length !== body.videoIds.length) {
-    return NextResponse.json(
-      { error: 'Some videos were not found or do not belong to you' },
-      { status: 400 }
-    );
   }
 
   // Validate destination platform account is linked
@@ -127,11 +121,54 @@ export async function POST(request: Request) {
     );
   }
 
-  // Generate schedule
-  const schedule = generateSchedule(body.videoIds, body.cadence, body.startDate);
+  // Resolve ClipFlow video IDs: use existing ones or auto-import
+  const resolvedVideoIds: string[] = [];
+  const videoTitleMap = new Map<string, string | null>();
 
-  // Build a map of videoId -> video for caption resolution
-  const videoMap = new Map(videos.map((v) => [v.id, v]));
+  for (const sv of body.videos) {
+    if (sv.clipflowVideoId) {
+      // Already imported — verify it exists and belongs to user
+      const existing = await prisma.video.findFirst({
+        where: { id: sv.clipflowVideoId, userId },
+      });
+      if (existing) {
+        resolvedVideoIds.push(existing.id);
+        videoTitleMap.set(existing.id, existing.title);
+        continue;
+      }
+    }
+
+    // Check if already imported by sourceUrl
+    const sourceUrl = `https://www.youtube.com/watch?v=${sv.youtubeVideoId}`;
+    const existingByUrl = await prisma.video.findFirst({
+      where: { userId, sourceUrl },
+    });
+
+    if (existingByUrl) {
+      resolvedVideoIds.push(existingByUrl.id);
+      videoTitleMap.set(existingByUrl.id, existingByUrl.title);
+      continue;
+    }
+
+    // Auto-import: create a PENDING video record
+    const video = await prisma.video.create({
+      data: {
+        userId,
+        sourceUrl,
+        title: sv.title,
+        description: sv.description ?? null,
+        thumbnailUrl: sv.thumbnailUrl ?? null,
+        duration: sv.duration ?? null,
+        status: VideoStatus.PENDING,
+      },
+    });
+
+    resolvedVideoIds.push(video.id);
+    videoTitleMap.set(video.id, video.title);
+  }
+
+  // Generate schedule
+  const schedule = generateSchedule(resolvedVideoIds, body.cadence, body.startDate);
 
   // Create migration and posts in a transaction
   const migration = await prisma.$transaction(async (tx) => {
@@ -150,11 +187,11 @@ export async function POST(request: Request) {
     });
 
     const postData = schedule.map((entry) => {
-      const video = videoMap.get(entry.videoId)!;
+      const title = videoTitleMap.get(entry.videoId) ?? null;
       return {
         videoId: entry.videoId,
         platform: body.destPlatform as Platform,
-        caption: resolveCaption(body.defaultCaption, video.title),
+        caption: resolveCaption(body.defaultCaption, title),
         hashtags: body.defaultHashtags ?? [],
         status: PostStatus.SCHEDULED,
         scheduledAt: entry.scheduledAt,

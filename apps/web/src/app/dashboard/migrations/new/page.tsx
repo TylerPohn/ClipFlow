@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { PLATFORM_CONFIG } from '@clipflow/shared/src/platforms';
@@ -16,16 +16,18 @@ interface AccountStatus {
   displayName?: string | null;
 }
 
-interface Video {
-  id: string;
+interface PlatformVideo {
+  videoId: string;
   title: string;
   thumbnailUrl: string | null;
   duration: number | null;
-  alreadyPosted?: boolean;
+  clipflowVideoId: string | null;
+  imported: boolean;
+  description?: string;
 }
 
 interface PreviewItem {
-  videoId: string;
+  youtubeVideoId: string;
   videoTitle: string | null;
   caption: string | null;
   hashtags: string[];
@@ -49,10 +51,13 @@ export default function NewMigrationPage() {
   const [destPlatform, setDestPlatform] = useState<PlatformKey | ''>('');
 
   // Step 2: Select Videos
-  const [videos, setVideos] = useState<Video[]>([]);
+  const [videos, setVideos] = useState<PlatformVideo[]>([]);
   const [videosLoading, setVideosLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const scrollSentinelRef = useRef<HTMLDivElement>(null);
 
   // Step 3: Default Settings
   const [captionTemplate, setCaptionTemplate] = useState('{{originalTitle}}');
@@ -98,41 +103,88 @@ export default function NewMigrationPage() {
     fetchAccounts();
   }, [authStatus]);
 
-  // Fetch user's ClipFlow videos that are READY
-  const fetchVideos = useCallback(async () => {
+  // Map source platform to API platform (YOUTUBE_SHORTS uses YOUTUBE API)
+  function apiPlatform(p: string): string {
+    return p === 'YOUTUBE_SHORTS' ? 'youtube' : p.toLowerCase();
+  }
+
+  // Fetch videos from the platform API with pagination
+  const fetchVideos = useCallback(async (pageToken?: string) => {
     if (!sourcePlatform) return;
-    setVideosLoading(true);
+    const isFirstPage = !pageToken;
+    if (isFirstPage) {
+      setVideosLoading(true);
+      setVideos([]);
+      setNextPageToken(null);
+    } else {
+      setLoadingMore(true);
+    }
     setError('');
     try {
-      const res = await fetch('/api/videos');
+      const params = new URLSearchParams();
+      if (pageToken) params.set('pageToken', pageToken);
+      const res = await fetch(
+        `/api/platforms/${apiPlatform(sourcePlatform)}/videos?${params.toString()}`
+      );
       if (!res.ok) throw new Error('Failed to fetch videos');
       const data = await res.json();
-      // Show all imported videos, check if already posted to dest platform
-      const videoList: Video[] = (data as Array<{
-        id: string;
-        title: string;
-        thumbnailUrl: string | null;
-        duration: number | null;
-        status: string;
-        sourceUrl: string;
-        posts?: Array<{ platform: string; status: string }>;
-      }>)
-        .map((v) => ({
-          id: v.id,
+      const newVideos: PlatformVideo[] = (data.videos ?? []).map(
+        (v: PlatformVideo) => ({
+          videoId: v.videoId,
           title: v.title,
           thumbnailUrl: v.thumbnailUrl,
           duration: v.duration,
-          alreadyPosted: v.posts?.some(
-            (p) => p.platform === destPlatform && p.status === 'POSTED'
-          ) ?? false,
-        }));
-      setVideos(videoList);
+          clipflowVideoId: v.clipflowVideoId ?? null,
+          imported: v.imported ?? false,
+          description: v.description,
+        })
+      );
+      if (isFirstPage) {
+        setVideos(newVideos);
+      } else {
+        setVideos((prev) => [...prev, ...newVideos]);
+      }
+      setNextPageToken(data.nextPageToken ?? null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load videos');
     } finally {
       setVideosLoading(false);
+      setLoadingMore(false);
     }
-  }, [sourcePlatform, destPlatform]);
+  }, [sourcePlatform]);
+
+  // Infinite scroll: observe sentinel element
+  useEffect(() => {
+    if (step !== 1) return;
+    const sentinel = scrollSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && nextPageToken && !loadingMore) {
+          fetchVideos(nextPageToken);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [step, nextPageToken, loadingMore, fetchVideos]);
+
+  // Build selected videos data for API calls
+  function getSelectedVideos() {
+    return videos
+      .filter((v) => selectedVideoIds.has(v.videoId))
+      .map((v) => ({
+        youtubeVideoId: v.videoId,
+        clipflowVideoId: v.clipflowVideoId,
+        title: v.title,
+        description: v.description,
+        thumbnailUrl: v.thumbnailUrl,
+        duration: v.duration,
+      }));
+  }
 
   // Fetch preview when entering step 5
   const fetchPreview = useCallback(async () => {
@@ -145,7 +197,7 @@ export default function NewMigrationPage() {
         body: JSON.stringify({
           sourcePlatform,
           destPlatform,
-          videoIds: Array.from(selectedVideoIds),
+          videos: getSelectedVideos(),
           defaultCaption: captionTemplate,
           defaultHashtags: hashtags
             .split(',')
@@ -167,7 +219,8 @@ export default function NewMigrationPage() {
     } finally {
       setPreviewLoading(false);
     }
-  }, [sourcePlatform, destPlatform, selectedVideoIds, captionTemplate, hashtags, visibility, videosPerDay, timeSlots, startDate, skipWeekends]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourcePlatform, destPlatform, selectedVideoIds, captionTemplate, hashtags, videosPerDay, timeSlots, startDate, skipWeekends, videos]);
 
   function handleNext() {
     setError('');
@@ -211,7 +264,7 @@ export default function NewMigrationPage() {
         body: JSON.stringify({
           sourcePlatform,
           destPlatform,
-          videoIds: Array.from(selectedVideoIds),
+          videos: getSelectedVideos(),
           defaultCaption: captionTemplate,
           defaultHashtags: hashtags
             .split(',')
@@ -250,14 +303,24 @@ export default function NewMigrationPage() {
 
   function toggleSelectAll() {
     const filtered = filteredVideos();
-    if (selectedVideoIds.size === filtered.length) {
-      setSelectedVideoIds(new Set());
+    const allSelected = filtered.every((v) => selectedVideoIds.has(v.videoId));
+    if (allSelected) {
+      const filteredIds = new Set(filtered.map((v) => v.videoId));
+      setSelectedVideoIds((prev) => {
+        const next = new Set(prev);
+        for (const id of filteredIds) next.delete(id);
+        return next;
+      });
     } else {
-      setSelectedVideoIds(new Set(filtered.map((v) => v.id)));
+      setSelectedVideoIds((prev) => {
+        const next = new Set(prev);
+        for (const v of filtered) next.add(v.videoId);
+        return next;
+      });
     }
   }
 
-  function filteredVideos(): Video[] {
+  function filteredVideos(): PlatformVideo[] {
     if (!searchQuery.trim()) return videos;
     const q = searchQuery.toLowerCase();
     return videos.filter((v) => v.title.toLowerCase().includes(q));
@@ -266,7 +329,7 @@ export default function NewMigrationPage() {
   function formatDuration(seconds: number | null): string {
     if (!seconds) return '';
     const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
+    const s = Math.round(seconds % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
@@ -287,7 +350,6 @@ export default function NewMigrationPage() {
   }
 
   function isConnected(key: string): boolean {
-    // YOUTUBE_SHORTS uses the YOUTUBE account
     const lookupKey = key === 'YOUTUBE_SHORTS' ? 'YOUTUBE' : key;
     return accounts[lookupKey]?.connected ?? false;
   }
@@ -423,7 +485,9 @@ export default function NewMigrationPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
                 <button className={styles.selectAllBtn} onClick={toggleSelectAll}>
-                  {selectedVideoIds.size === filteredVideos().length ? 'Deselect All' : 'Select All'}
+                  {filteredVideos().every((v) => selectedVideoIds.has(v.videoId))
+                    ? 'Deselect All'
+                    : 'Select All'}
                 </button>
                 <span className={styles.selectedCount}>
                   {selectedVideoIds.size} selected
@@ -433,12 +497,12 @@ export default function NewMigrationPage() {
               <div className={styles.videoGrid}>
                 {filteredVideos().map((video) => (
                   <div
-                    key={video.id}
-                    className={`${styles.videoItem} ${selectedVideoIds.has(video.id) ? styles.videoItemSelected : ''}`}
-                    onClick={() => toggleVideo(video.id)}
+                    key={video.videoId}
+                    className={`${styles.videoItem} ${selectedVideoIds.has(video.videoId) ? styles.videoItemSelected : ''}`}
+                    onClick={() => toggleVideo(video.videoId)}
                   >
                     <div
-                      className={`${styles.videoCheck} ${selectedVideoIds.has(video.id) ? styles.videoCheckSelected : ''}`}
+                      className={`${styles.videoCheck} ${selectedVideoIds.has(video.videoId) ? styles.videoCheckSelected : ''}`}
                     >
                       &#10003;
                     </div>
@@ -449,16 +513,19 @@ export default function NewMigrationPage() {
                     )}
                     <div className={styles.videoInfo}>
                       <div className={styles.videoTitle}>{video.title}</div>
-                      {video.duration && (
+                      {video.duration != null && video.duration > 0 && (
                         <div className={styles.videoDuration}>{formatDuration(video.duration)}</div>
-                      )}
-                      {video.alreadyPosted && (
-                        <div className={styles.alreadyPosted}>Already posted to {platformName(destPlatform)}</div>
                       )}
                     </div>
                   </div>
                 ))}
+                {/* Infinite scroll sentinel */}
+                <div ref={scrollSentinelRef} style={{ height: 1 }} />
               </div>
+
+              {loadingMore && (
+                <div className={styles.loading}>Loading more videos...</div>
+              )}
             </>
           )}
 
