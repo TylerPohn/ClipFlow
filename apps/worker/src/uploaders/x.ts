@@ -3,11 +3,10 @@ import type { VideoJob } from '@clipflow/shared';
 import { prisma } from '@clipflow/db';
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
-const MEDIA_UPLOAD_URL = 'https://api.x.com/2/media/upload';
+const MEDIA_UPLOAD_URL = 'https://upload.twitter.com/1.1/media/upload.json';
 
 interface MediaUploadInitResponse {
   media_id_string: string;
-  media_id: number;
 }
 
 interface MediaUploadStatusResponse {
@@ -81,8 +80,11 @@ function sleep(ms: number): Promise<void> {
 /**
  * Upload a video to X (Twitter) and create a tweet.
  *
- * Uses v2 media upload endpoint (OAuth 2.0 user context)
+ * Uses v1.1 chunked media upload with OAuth 2.0 user access token,
  * then v2 tweet creation.
+ *
+ * The v1.1 media upload endpoint supports OAuth 2.0 user context
+ * when the token has the media.write scope.
  */
 export async function uploadToX(
   platformAccountId: string,
@@ -94,16 +96,18 @@ export async function uploadToX(
   const authHeader = `Bearer ${accessToken}`;
 
   // Step 1: INIT
-  const initForm = new FormData();
-  initForm.append('command', 'INIT');
-  initForm.append('media_type', 'video/mp4');
-  initForm.append('total_bytes', String(videoBuffer.byteLength));
-  initForm.append('media_category', 'tweet_video');
-
   const initRes = await fetch(MEDIA_UPLOAD_URL, {
     method: 'POST',
-    headers: { Authorization: authHeader },
-    body: initForm,
+    headers: {
+      Authorization: authHeader,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      command: 'INIT',
+      media_type: 'video/mp4',
+      total_bytes: String(videoBuffer.byteLength),
+      media_category: 'tweet_video',
+    }),
   });
 
   if (!initRes.ok) {
@@ -125,16 +129,16 @@ export async function uploadToX(
     const end = Math.min(start + CHUNK_SIZE, videoBuffer.byteLength);
     const chunk = videoBuffer.subarray(start, end);
 
-    const appendForm = new FormData();
-    appendForm.append('command', 'APPEND');
-    appendForm.append('media_id', mediaId);
-    appendForm.append('segment_index', String(i));
-    appendForm.append('media', new Blob([chunk], { type: 'application/octet-stream' }), 'chunk');
+    const form = new FormData();
+    form.append('command', 'APPEND');
+    form.append('media_id', mediaId);
+    form.append('segment_index', String(i));
+    form.append('media', new Blob([chunk], { type: 'application/octet-stream' }), 'chunk.mp4');
 
     const appendRes = await fetch(MEDIA_UPLOAD_URL, {
       method: 'POST',
       headers: { Authorization: authHeader },
-      body: appendForm,
+      body: form,
     });
 
     if (!appendRes.ok) {
@@ -147,14 +151,16 @@ export async function uploadToX(
   await job.updateProgress(70);
 
   // Step 3: FINALIZE
-  const finalizeForm = new FormData();
-  finalizeForm.append('command', 'FINALIZE');
-  finalizeForm.append('media_id', mediaId);
-
   const finalizeRes = await fetch(MEDIA_UPLOAD_URL, {
     method: 'POST',
-    headers: { Authorization: authHeader },
-    body: finalizeForm,
+    headers: {
+      Authorization: authHeader,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      command: 'FINALIZE',
+      media_id: mediaId,
+    }),
   });
 
   if (!finalizeRes.ok) {
