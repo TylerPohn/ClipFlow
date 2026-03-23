@@ -22,7 +22,7 @@ const PLATFORM_LINK_URLS: Record<PlatformKey, string | null> = {
   YOUTUBE: '/api/auth/youtube/link?returnTo=/dashboard/accounts',
   TIKTOK: '/api/auth/tiktok/link?returnTo=/dashboard/accounts',
   INSTAGRAM: null, // Not implemented yet
-  X: null, // Not implemented yet
+  X: '/api/auth/x/link?returnTo=/dashboard/accounts',
 };
 
 const PLATFORM_COLORS: Record<PlatformKey, string> = {

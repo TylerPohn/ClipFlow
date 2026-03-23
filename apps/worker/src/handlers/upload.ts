@@ -10,6 +10,7 @@ import {
   downloadFile,
 } from '@clipflow/shared';
 import { prisma } from '@clipflow/db';
+import { uploadToX } from '../uploaders/x';
 
 export async function handleUpload(job: Job<VideoJob>): Promise<void> {
   const { videoId } = job.data;
@@ -51,109 +52,34 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
 
     await job.updateProgress(30);
 
-    // 4. Upload to TikTok via Content Posting API
+    // 4. Upload to platform
     let platformPostId: string | undefined;
+    const platform = post.platform;
 
     try {
-      // Get TikTok access token from PlatformAccount
       const account = await prisma.platformAccount.findFirst({
         where: {
           userId: post.video.userId,
-          platform: 'TIKTOK',
+          platform,
         },
       });
 
       if (!account?.accessToken) {
-        throw new Error('No TikTok account linked or access token missing');
+        throw new Error(`No ${platform} account linked or access token missing`);
       }
 
-      await job.updateProgress(50);
-
-      // Step 1: Initialize direct post via TikTok Content Posting API
       const videoBuffer = await readFile(videoPath);
       const caption = job.data.options?.caption as string | undefined;
       const hashtags = (job.data.options?.hashtags as string[] | undefined) ?? [];
       const fullCaption = [caption, ...hashtags.map((t) => `#${t}`)].filter(Boolean).join(' ');
 
-      const initResponse = await fetch(
-        'https://open.tiktokapis.com/v2/post/publish/video/init/',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${account.accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            post_info: {
-              title: fullCaption.slice(0, 150),
-              privacy_level: 'SELF_ONLY',
-              disable_duet: false,
-              disable_comment: false,
-              disable_stitch: false,
-              video_cover_timestamp_ms: 0,
-            },
-            source_info: {
-              source: 'FILE_UPLOAD',
-              video_size: videoBuffer.byteLength,
-              chunk_size: videoBuffer.byteLength,
-              total_chunk_count: 1,
-            },
-          }),
-        }
-      );
-
-      const initBody = await initResponse.text();
-      console.log(`TikTok init response (${initResponse.status}):`, initBody);
-
-      if (!initResponse.ok) {
-        throw new Error(
-          `TikTok init failed (${initResponse.status}): ${initBody}`
-        );
+      if (platform === 'X') {
+        platformPostId = await uploadToX(account.id, videoBuffer, fullCaption, job);
+      } else if (platform === 'TIKTOK') {
+        platformPostId = await uploadToTikTok(account, videoBuffer, fullCaption, job);
+      } else {
+        throw new Error(`Upload not implemented for platform: ${platform}`);
       }
-
-      const initData = JSON.parse(initBody) as {
-        data: { publish_id: string; upload_url: string };
-      };
-
-      console.log(`TikTok publish_id: ${initData.data.publish_id}, upload_url: ${initData.data.upload_url}`);
-
-      await job.updateProgress(70);
-
-      // Step 2: Upload the video chunk
-      const uploadResponse = await fetch(initData.data.upload_url, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'video/mp4',
-          'Content-Range': `bytes 0-${videoBuffer.byteLength - 1}/${videoBuffer.byteLength}`,
-        },
-        body: videoBuffer,
-      });
-
-      const uploadBody = await uploadResponse.text();
-      console.log(`TikTok upload response (${uploadResponse.status}):`, uploadBody);
-
-      if (!uploadResponse.ok) {
-        throw new Error(
-          `TikTok upload failed (${uploadResponse.status}): ${uploadBody}`
-        );
-      }
-
-      platformPostId = initData.data.publish_id;
-
-      // Step 3: Check publish status
-      const statusResponse = await fetch(
-        'https://open.tiktokapis.com/v2/post/publish/status/fetch/',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${account.accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ publish_id: platformPostId }),
-        }
-      );
-      const statusBody = await statusResponse.text();
-      console.log(`TikTok publish status (${statusResponse.status}):`, statusBody);
 
       await job.updateProgress(90);
     } catch (uploadError) {
@@ -189,4 +115,96 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
     // 6. Clean up temp files
     await rm(tmpDir, { recursive: true, force: true });
   }
+}
+
+async function uploadToTikTok(
+  account: { accessToken: string },
+  videoBuffer: Buffer,
+  fullCaption: string,
+  job: Job<VideoJob>
+): Promise<string> {
+  await job.updateProgress(50);
+
+  // Step 1: Initialize direct post via TikTok Content Posting API
+  const initResponse = await fetch(
+    'https://open.tiktokapis.com/v2/post/publish/video/init/',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${account.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        post_info: {
+          title: fullCaption.slice(0, 150),
+          privacy_level: 'SELF_ONLY',
+          disable_duet: false,
+          disable_comment: false,
+          disable_stitch: false,
+          video_cover_timestamp_ms: 0,
+        },
+        source_info: {
+          source: 'FILE_UPLOAD',
+          video_size: videoBuffer.byteLength,
+          chunk_size: videoBuffer.byteLength,
+          total_chunk_count: 1,
+        },
+      }),
+    }
+  );
+
+  const initBody = await initResponse.text();
+  console.log(`TikTok init response (${initResponse.status}):`, initBody);
+
+  if (!initResponse.ok) {
+    throw new Error(
+      `TikTok init failed (${initResponse.status}): ${initBody}`
+    );
+  }
+
+  const initData = JSON.parse(initBody) as {
+    data: { publish_id: string; upload_url: string };
+  };
+
+  console.log(`TikTok publish_id: ${initData.data.publish_id}, upload_url: ${initData.data.upload_url}`);
+
+  await job.updateProgress(70);
+
+  // Step 2: Upload the video chunk
+  const uploadResponse = await fetch(initData.data.upload_url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'video/mp4',
+      'Content-Range': `bytes 0-${videoBuffer.byteLength - 1}/${videoBuffer.byteLength}`,
+    },
+    body: videoBuffer,
+  });
+
+  const uploadBody = await uploadResponse.text();
+  console.log(`TikTok upload response (${uploadResponse.status}):`, uploadBody);
+
+  if (!uploadResponse.ok) {
+    throw new Error(
+      `TikTok upload failed (${uploadResponse.status}): ${uploadBody}`
+    );
+  }
+
+  const publishId = initData.data.publish_id;
+
+  // Step 3: Check publish status
+  const statusResponse = await fetch(
+    'https://open.tiktokapis.com/v2/post/publish/status/fetch/',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${account.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ publish_id: publishId }),
+    }
+  );
+  const statusBody = await statusResponse.text();
+  console.log(`TikTok publish status (${statusResponse.status}):`, statusBody);
+
+  return publishId;
 }
