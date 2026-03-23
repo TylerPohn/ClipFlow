@@ -20,6 +20,7 @@ interface PreviewBody {
   videos: SourceVideo[];
   cadence: CadenceConfig;
   startDate: string;
+  tzOffset?: number;
   defaultCaption?: string;
   defaultHashtags?: string[];
 }
@@ -27,12 +28,13 @@ interface PreviewBody {
 function generateSchedule(
   videos: SourceVideo[],
   cadence: CadenceConfig,
-  startDate: string
+  startDate: string,
+  tzOffset: number
 ): { video: SourceVideo; scheduledAt: Date }[] {
   const schedule: { video: SourceVideo; scheduledAt: Date }[] = [];
   const { timeSlots, skipWeekends } = cadence;
 
-  let currentDate = new Date(startDate + 'T00:00:00Z');
+  let currentDate = new Date(startDate + 'T12:00:00Z');
   let slotIndex = 0;
 
   for (const video of videos) {
@@ -43,8 +45,16 @@ function generateSchedule(
     }
 
     const [hours, minutes] = timeSlots[slotIndex].split(':').map(Number);
-    const scheduledAt = new Date(currentDate);
-    scheduledAt.setUTCHours(hours, minutes, 0, 0);
+    const localMs = Date.UTC(
+      currentDate.getUTCFullYear(),
+      currentDate.getUTCMonth(),
+      currentDate.getUTCDate(),
+      hours,
+      minutes,
+      0,
+      0
+    );
+    const scheduledAt = new Date(localMs + tzOffset * 60 * 1000);
 
     schedule.push({ video, scheduledAt });
 
@@ -97,7 +107,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Start date is required' }, { status: 400 });
   }
 
-  const schedule = generateSchedule(body.videos, body.cadence, body.startDate);
+  const schedule = generateSchedule(body.videos, body.cadence, body.startDate, body.tzOffset ?? 0);
 
   const preview = schedule.map((entry) => ({
     youtubeVideoId: entry.video.youtubeVideoId,

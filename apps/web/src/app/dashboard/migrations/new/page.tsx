@@ -214,6 +214,7 @@ export default function NewMigrationPage() {
             skipWeekends,
           },
           startDate,
+          tzOffset: new Date().getTimezoneOffset(),
         }),
       });
       if (!res.ok) {
@@ -285,6 +286,7 @@ export default function NewMigrationPage() {
             skipWeekends,
           },
           startDate,
+          tzOffset: new Date().getTimezoneOffset(),
         }),
       });
       if (!res.ok) {

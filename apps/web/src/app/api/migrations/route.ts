@@ -24,6 +24,7 @@ interface CreateMigrationBody {
   videos: SourceVideo[];
   cadence: CadenceConfig;
   startDate: string;
+  tzOffset?: number; // minutes from UTC (e.g. 300 for CDT/UTC-5)
   defaultCaption?: string;
   defaultHashtags?: string[];
   defaultSettings?: Record<string, unknown>;
@@ -33,16 +34,18 @@ interface CreateMigrationBody {
 function generateSchedule(
   videoIds: string[],
   cadence: CadenceConfig,
-  startDate: string
+  startDate: string,
+  tzOffset: number // minutes from UTC (positive = behind UTC, e.g. 300 for CDT)
 ): { videoId: string; scheduledAt: Date }[] {
   const schedule: { videoId: string; scheduledAt: Date }[] = [];
   const { timeSlots, skipWeekends } = cadence;
 
-  let currentDate = new Date(startDate + 'T00:00:00Z');
+  // Work in local dates by tracking day as a plain string, then convert to UTC at the end
+  let currentDate = new Date(startDate + 'T12:00:00Z'); // noon UTC to avoid DST edge cases
   let slotIndex = 0;
 
   for (const videoId of videoIds) {
-    // Skip weekends if configured
+    // Skip weekends (check in local time context)
     if (skipWeekends) {
       while (currentDate.getUTCDay() === 0 || currentDate.getUTCDay() === 6) {
         currentDate.setUTCDate(currentDate.getUTCDate() + 1);
@@ -50,8 +53,17 @@ function generateSchedule(
     }
 
     const [hours, minutes] = timeSlots[slotIndex].split(':').map(Number);
-    const scheduledAt = new Date(currentDate);
-    scheduledAt.setUTCHours(hours, minutes, 0, 0);
+    // Build the local datetime, then convert to UTC by adding the offset
+    const localMs = Date.UTC(
+      currentDate.getUTCFullYear(),
+      currentDate.getUTCMonth(),
+      currentDate.getUTCDate(),
+      hours,
+      minutes,
+      0,
+      0
+    );
+    const scheduledAt = new Date(localMs + tzOffset * 60 * 1000);
 
     schedule.push({ videoId, scheduledAt });
 
@@ -167,8 +179,8 @@ export async function POST(request: Request) {
     videoTitleMap.set(video.id, video.title);
   }
 
-  // Generate schedule
-  const schedule = generateSchedule(resolvedVideoIds, body.cadence, body.startDate);
+  // Generate schedule (tzOffset defaults to 0 = UTC if not provided)
+  const schedule = generateSchedule(resolvedVideoIds, body.cadence, body.startDate, body.tzOffset ?? 0);
 
   // Create migration and posts in a transaction
   const migration = await prisma.$transaction(async (tx) => {
