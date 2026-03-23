@@ -1,0 +1,33 @@
+import { NextResponse } from 'next/server';
+import { getServerSession } from '@/lib/auth';
+import { prisma } from '@clipflow/db';
+
+export async function GET() {
+  const session = await getServerSession();
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const userId = (session.user as { id: string }).id;
+
+  const account = await prisma.platformAccount.findFirst({
+    where: { userId, platform: 'X' },
+    select: {
+      id: true,
+      platformUserId: true,
+      displayName: true,
+      handle: true,
+      avatarUrl: true,
+      lastSyncedAt: true,
+    },
+  });
+
+  return NextResponse.json({
+    connected: !!account,
+    accountId: account?.platformUserId ?? null,
+    displayName: account?.displayName ?? null,
+    handle: account?.handle ?? null,
+    avatarUrl: account?.avatarUrl ?? null,
+    lastSyncedAt: account?.lastSyncedAt ?? null,
+  });
+}
