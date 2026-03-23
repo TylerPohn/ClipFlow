@@ -18,6 +18,8 @@ export enum Platform {
   TIKTOK = 'TIKTOK',
   INSTAGRAM = 'INSTAGRAM',
   YOUTUBE_SHORTS = 'YOUTUBE_SHORTS',
+  YOUTUBE = 'YOUTUBE',
+  X = 'X',
 }
 
 export enum MigrationStatus {

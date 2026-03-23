@@ -216,7 +216,10 @@ export default function NewMigrationPage() {
           startDate,
         }),
       });
-      if (!res.ok) throw new Error('Failed to generate preview');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to generate preview');
+      }
       const data = await res.json();
       setPreview(data);
     } catch (err: unknown) {
