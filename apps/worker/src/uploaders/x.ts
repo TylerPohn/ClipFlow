@@ -1,8 +1,10 @@
 import type { Job } from 'bullmq';
 import type { VideoJob } from '@clipflow/shared';
 import { prisma } from '@clipflow/db';
+import * as crypto from 'crypto';
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+const MEDIA_UPLOAD_URL = 'https://upload.twitter.com/1.1/media/upload.json';
 
 interface MediaUploadInitResponse {
   media_id_string: string;
@@ -76,11 +78,60 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// --- OAuth 1.0a signing ---
+
+function percentEncode(str: string): string {
+  return encodeURIComponent(str).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+function generateOAuthNonce(): string {
+  return crypto.randomBytes(16).toString('hex');
+}
+
+function buildOAuth1Header(
+  method: string,
+  url: string,
+  params: Record<string, string>,
+  consumerKey: string,
+  consumerSecret: string,
+  tokenKey: string,
+  tokenSecret: string
+): string {
+  const oauthParams: Record<string, string> = {
+    oauth_consumer_key: consumerKey,
+    oauth_nonce: generateOAuthNonce(),
+    oauth_signature_method: 'HMAC-SHA1',
+    oauth_timestamp: String(Math.floor(Date.now() / 1000)),
+    oauth_token: tokenKey,
+    oauth_version: '1.0',
+  };
+
+  // Combine oauth params + request params for signature base
+  const allParams = { ...oauthParams, ...params };
+  const sortedKeys = Object.keys(allParams).sort();
+  const paramString = sortedKeys
+    .map((k) => `${percentEncode(k)}=${percentEncode(allParams[k])}`)
+    .join('&');
+
+  const signatureBase = `${method.toUpperCase()}&${percentEncode(url)}&${percentEncode(paramString)}`;
+  const signingKey = `${percentEncode(consumerSecret)}&${percentEncode(tokenSecret)}`;
+  const signature = crypto.createHmac('sha1', signingKey).update(signatureBase).digest('base64');
+
+  oauthParams['oauth_signature'] = signature;
+
+  const headerParts = Object.keys(oauthParams)
+    .sort()
+    .map((k) => `${percentEncode(k)}="${percentEncode(oauthParams[k])}"`)
+    .join(', ');
+
+  return `OAuth ${headerParts}`;
+}
+
 /**
  * Upload a video to X (Twitter) and create a tweet.
  *
- * Uses v1.1 chunked media upload (with OAuth 2.0 Bearer token)
- * then v2 tweet creation.
+ * Uses v1.1 chunked media upload with OAuth 1.0a signing,
+ * then v2 tweet creation with OAuth 2.0 Bearer token.
  */
 export async function uploadToX(
   platformAccountId: string,
@@ -90,19 +141,40 @@ export async function uploadToX(
 ): Promise<string> {
   const accessToken = await getValidAccessToken(platformAccountId);
 
+  const consumerKey = process.env.X_CONSUMER_KEY;
+  const consumerSecret = process.env.X_CONSUMER_SECRET;
+
+  if (!consumerKey || !consumerSecret) {
+    throw new Error('X_CONSUMER_KEY and X_CONSUMER_SECRET are required for media upload');
+  }
+
+  // For OAuth 1.0a media upload, we need the user's OAuth 1.0a tokens.
+  // The X API allows using the OAuth 2.0 user access token as the OAuth 1.0a token
+  // when the app has both OAuth 1.0a and 2.0 configured.
+  // The token secret is empty string when using OAuth 2.0 access tokens with 1.0a signing.
+  const userToken = accessToken;
+  const userTokenSecret = '';
+
   // Step 1: INIT
-  const initRes = await fetch('https://upload.twitter.com/1.1/media/upload.json', {
+  const initParams = {
+    command: 'INIT',
+    media_type: 'video/mp4',
+    total_bytes: String(videoBuffer.byteLength),
+    media_category: 'tweet_video',
+  };
+
+  const initAuth = buildOAuth1Header(
+    'POST', MEDIA_UPLOAD_URL, initParams,
+    consumerKey, consumerSecret, userToken, userTokenSecret
+  );
+
+  const initRes = await fetch(MEDIA_UPLOAD_URL, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: initAuth,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: new URLSearchParams({
-      command: 'INIT',
-      media_type: 'video/mp4',
-      total_bytes: String(videoBuffer.byteLength),
-      media_category: 'tweet_video',
-    }),
+    body: new URLSearchParams(initParams),
   });
 
   if (!initRes.ok) {
@@ -117,6 +189,8 @@ export async function uploadToX(
   await job.updateProgress(50);
 
   // Step 2: APPEND chunks
+  // For multipart APPEND, OAuth 1.0a signature only includes command, media_id, segment_index
+  // (not the binary media_data)
   const totalChunks = Math.ceil(videoBuffer.byteLength / CHUNK_SIZE);
 
   for (let i = 0; i < totalChunks; i++) {
@@ -124,16 +198,28 @@ export async function uploadToX(
     const end = Math.min(start + CHUNK_SIZE, videoBuffer.byteLength);
     const chunk = videoBuffer.subarray(start, end);
 
+    const appendParams = {
+      command: 'APPEND',
+      media_id: mediaId,
+      segment_index: String(i),
+    };
+
+    const appendAuth = buildOAuth1Header(
+      'POST', MEDIA_UPLOAD_URL, appendParams,
+      consumerKey, consumerSecret, userToken, userTokenSecret
+    );
+
+    // Use multipart/form-data for the actual request body
     const form = new FormData();
     form.append('command', 'APPEND');
     form.append('media_id', mediaId);
     form.append('segment_index', String(i));
     form.append('media_data', Buffer.from(chunk).toString('base64'));
 
-    const appendRes = await fetch('https://upload.twitter.com/1.1/media/upload.json', {
+    const appendRes = await fetch(MEDIA_UPLOAD_URL, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: appendAuth,
       },
       body: form,
     });
@@ -148,16 +234,23 @@ export async function uploadToX(
   await job.updateProgress(70);
 
   // Step 3: FINALIZE
-  const finalizeRes = await fetch('https://upload.twitter.com/1.1/media/upload.json', {
+  const finalizeParams = {
+    command: 'FINALIZE',
+    media_id: mediaId,
+  };
+
+  const finalizeAuth = buildOAuth1Header(
+    'POST', MEDIA_UPLOAD_URL, finalizeParams,
+    consumerKey, consumerSecret, userToken, userTokenSecret
+  );
+
+  const finalizeRes = await fetch(MEDIA_UPLOAD_URL, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: finalizeAuth,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: new URLSearchParams({
-      command: 'FINALIZE',
-      media_id: mediaId,
-    }),
+    body: new URLSearchParams(finalizeParams),
   });
 
   if (!finalizeRes.ok) {
@@ -171,11 +264,19 @@ export async function uploadToX(
   // Step 4: Poll STATUS until processing complete
   let processingComplete = false;
   while (!processingComplete) {
+    const statusParams = {
+      command: 'STATUS',
+      media_id: mediaId,
+    };
+
+    const statusAuth = buildOAuth1Header(
+      'GET', MEDIA_UPLOAD_URL, statusParams,
+      consumerKey, consumerSecret, userToken, userTokenSecret
+    );
+
     const statusRes = await fetch(
-      `https://upload.twitter.com/1.1/media/upload.json?command=STATUS&media_id=${mediaId}`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }
+      `${MEDIA_UPLOAD_URL}?command=STATUS&media_id=${mediaId}`,
+      { headers: { Authorization: statusAuth } }
     );
 
     if (!statusRes.ok) {
@@ -186,7 +287,6 @@ export async function uploadToX(
     const statusData: MediaUploadStatusResponse = await statusRes.json();
 
     if (!statusData.processing_info) {
-      // No processing_info means processing is complete
       processingComplete = true;
     } else if (statusData.processing_info.state === 'succeeded') {
       processingComplete = true;
@@ -204,7 +304,7 @@ export async function uploadToX(
   console.log('X media processing succeeded');
   await job.updateProgress(90);
 
-  // Step 5: Create tweet with media
+  // Step 5: Create tweet with media (v2 API, OAuth 2.0)
   const tweetRes = await fetch('https://api.x.com/2/tweets', {
     method: 'POST',
     headers: {
