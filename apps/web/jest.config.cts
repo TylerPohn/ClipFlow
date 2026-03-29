@@ -1,7 +1,8 @@
 const nextJest = require('next/jest.js');
+const path = require('path');
 
 const createJestConfig = nextJest({
-  dir: './',
+  dir: __dirname,
 });
 
 const config = {
@@ -15,4 +16,20 @@ const config = {
   testEnvironment: 'jsdom',
 };
 
-module.exports = createJestConfig(config);
+const jestConfig = createJestConfig(config);
+
+module.exports = async () => {
+  const resolved = await jestConfig();
+  resolved.moduleNameMapper = {
+    ...resolved.moduleNameMapper,
+    '^@/(.*)$': path.resolve(__dirname, 'src/$1'),
+  };
+  // Remove @/ paths from SWC transform config so moduleNameMapper handles them
+  for (const val of Object.values(resolved.transform)) {
+    const options = Array.isArray(val) ? val[1] : val;
+    if (options?.jsConfig?.compilerOptions?.paths?.['@/*']) {
+      delete options.jsConfig.compilerOptions.paths['@/*'];
+    }
+  }
+  return resolved;
+};

@@ -38,9 +38,12 @@ export async function GET(
     );
   }
 
+  const filename = (video.title ?? 'video').replace(/[^a-zA-Z0-9_\-. ]/g, '') + '.mp4';
+
   const command = new GetObjectCommand({
     Bucket: S3_BUCKETS.PROCESSED,
     Key: video.processedStorageKey,
+    ResponseContentDisposition: `attachment; filename="${filename}"`,
   });
 
   const url = await getSignedUrl(s3, command, {

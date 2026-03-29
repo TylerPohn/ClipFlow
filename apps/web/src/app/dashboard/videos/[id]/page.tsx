@@ -227,7 +227,12 @@ export default function VideoDetailPage() {
       if (!res.ok) throw new Error('Download failed');
       const data = await res.json();
       if (data.url) {
-        window.open(data.url, '_blank');
+        const a = document.createElement('a');
+        a.href = data.url;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
       }
     } catch {
       setError('Download failed');
