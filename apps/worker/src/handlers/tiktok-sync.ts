@@ -76,7 +76,9 @@ export async function handleTikTokSync(job: Job<VideoJob>) {
     where: { id: platformAccountId },
   });
 
+  console.log(`[TikTok Sync] Starting sync for account ${account.platformUserId} (${account.displayName})`);
   const accessToken = await refreshAccessToken(account.id);
+  console.log(`[TikTok Sync] Got access token (expires: ${account.tokenExpiresAt?.toISOString() ?? 'unknown'})`);
 
   await job.updateProgress(10);
 
@@ -103,17 +105,27 @@ export async function handleTikTokSync(job: Job<VideoJob>) {
       }
     );
 
+    const responseText = await res.text();
+    console.log(`[TikTok Sync] API response status: ${res.status}`);
+    console.log(`[TikTok Sync] API response body: ${responseText}`);
+
     if (!res.ok) {
-      throw new Error(`TikTok video list failed: ${res.status}`);
+      throw new Error(`TikTok video list failed: ${res.status} - ${responseText}`);
     }
 
-    const data: any = await res.json();
+    let data: any;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      throw new Error(`TikTok API returned invalid JSON: ${responseText.substring(0, 500)}`);
+    }
 
     if (data.error?.code !== 'ok' && data.error?.code) {
-      throw new Error(`TikTok API error: ${data.error.code} - ${data.error.message}`);
+      throw new Error(`TikTok API error: ${data.error.code} - ${data.error.message} (full response: ${responseText.substring(0, 500)})`);
     }
 
     const videos = data.data?.videos ?? [];
+    console.log(`[TikTok Sync] Page returned ${videos.length} videos, has_more: ${data.data?.has_more}, cursor: ${data.data?.cursor}`);
     allVideos.push(...videos);
 
     hasMore = data.data?.has_more ?? false;
@@ -123,7 +135,7 @@ export async function handleTikTokSync(job: Job<VideoJob>) {
   await job.updateProgress(30);
 
   if (allVideos.length === 0) {
-    console.log('No TikTok videos found to sync');
+    console.log(`[TikTok Sync] No videos returned by TikTok API for account ${account.platformUserId}. This likely means the video.list scope hasn't been approved in the TikTok Developer Portal.`);
     await job.updateProgress(100);
     return;
   }
