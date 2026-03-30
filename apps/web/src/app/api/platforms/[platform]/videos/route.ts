@@ -125,10 +125,67 @@ export async function GET(
     });
   }
 
-  // For other platforms, sync/browse not yet available
+  // For Instagram, TikTok, etc. — return synced videos from the database
+  const platformAccount = await prisma.platformAccount.findFirst({
+    where: { userId, platform },
+  });
+
+  if (!platformAccount) {
+    return NextResponse.json(
+      { error: `No ${platform} account linked` },
+      { status: 400 }
+    );
+  }
+
+  const skip = pageToken ? parseInt(pageToken, 10) : 0;
+
+  const [videos, totalCount] = await Promise.all([
+    prisma.video.findMany({
+      where: { userId, platform },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: maxResults,
+      select: {
+        id: true,
+        sourceUrl: true,
+        title: true,
+        description: true,
+        thumbnailUrl: true,
+        duration: true,
+        viewCount: true,
+        likeCount: true,
+        commentCount: true,
+        shareCount: true,
+        platformMediaId: true,
+        createdAt: true,
+      },
+    }),
+    prisma.video.count({ where: { userId, platform } }),
+  ]);
+
+  const nextSkip = skip + maxResults;
+  const nextPageTokenValue = nextSkip < totalCount ? String(nextSkip) : null;
+
   return NextResponse.json({
-    videos: [],
-    nextPageToken: null,
-    message: 'Sync not available for this platform yet',
+    videos: videos.map((v) => ({
+      videoId: v.platformMediaId ?? v.id,
+      title: v.title,
+      description: v.description,
+      thumbnailUrl: v.thumbnailUrl,
+      duration: v.duration,
+      publishedAt: v.createdAt.toISOString(),
+      viewCount: v.viewCount,
+      likeCount: v.likeCount,
+      commentCount: v.commentCount,
+      shareCount: v.shareCount,
+      imported: true,
+      clipflowVideoId: v.id,
+    })),
+    nextPageToken: nextPageTokenValue,
+    account: {
+      displayName: platformAccount.displayName,
+      handle: platformAccount.handle,
+      avatarUrl: platformAccount.avatarUrl,
+    },
   });
 }
