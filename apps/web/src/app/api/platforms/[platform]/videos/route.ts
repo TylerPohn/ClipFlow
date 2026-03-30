@@ -109,6 +109,7 @@ export async function GET(
         publishedAt: v.publishedAt,
         viewCount: v.viewCount,
         likeCount: v.likeCount,
+        commentCount: v.commentCount,
         imported: clipflowVideoId !== null,
         clipflowVideoId,
       };

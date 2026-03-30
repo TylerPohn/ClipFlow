@@ -135,6 +135,17 @@ export interface YouTubeVideoDetails {
   publishedAt: string;
   viewCount: number;
   likeCount: number;
+  commentCount: number;
+}
+
+export interface YouTubeComment {
+  commentId: string;
+  authorName: string;
+  authorProfileUrl: string;
+  text: string;
+  likeCount: number;
+  publishedAt: string;
+  replyCount: number;
 }
 
 /**
@@ -168,7 +179,7 @@ export async function getVideoDetails(
         publishedAt: string;
       };
       contentDetails: { duration: string };
-      statistics: { viewCount?: string; likeCount?: string };
+      statistics: { viewCount?: string; likeCount?: string; commentCount?: string };
     }) => ({
       videoId: item.id,
       title: item.snippet.title,
@@ -183,8 +194,69 @@ export async function getVideoDetails(
       publishedAt: item.snippet.publishedAt,
       viewCount: parseInt(item.statistics.viewCount ?? '0', 10),
       likeCount: parseInt(item.statistics.likeCount ?? '0', 10),
+      commentCount: parseInt(item.statistics.commentCount ?? '0', 10),
     })
   );
+}
+
+/**
+ * Get top-level comments for a YouTube video (paginated).
+ */
+export async function getVideoComments(
+  accessToken: string,
+  videoId: string,
+  maxResults = 50,
+  pageToken?: string
+): Promise<{ comments: YouTubeComment[]; nextPageToken?: string }> {
+  const params = new URLSearchParams({
+    part: 'snippet',
+    videoId,
+    maxResults: String(Math.min(maxResults, 100)),
+    order: 'relevance',
+    textFormat: 'plainText',
+  });
+  if (pageToken) params.set('pageToken', pageToken);
+
+  const res = await fetch(`${YOUTUBE_API_BASE}/commentThreads?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    if (res.status === 403) {
+      return { comments: [] };
+    }
+    throw new Error(`YouTube commentThreads.list failed: ${res.status}`);
+  }
+
+  const data = await res.json();
+
+  const comments: YouTubeComment[] = (data.items ?? []).map(
+    (item: {
+      id: string;
+      snippet: {
+        totalReplyCount: number;
+        topLevelComment: {
+          snippet: {
+            authorDisplayName: string;
+            authorProfileImageUrl: string;
+            textDisplay: string;
+            likeCount: number;
+            publishedAt: string;
+          };
+        };
+      };
+    }) => ({
+      commentId: item.id,
+      authorName: item.snippet.topLevelComment.snippet.authorDisplayName,
+      authorProfileUrl: item.snippet.topLevelComment.snippet.authorProfileImageUrl,
+      text: item.snippet.topLevelComment.snippet.textDisplay,
+      likeCount: item.snippet.topLevelComment.snippet.likeCount,
+      publishedAt: item.snippet.topLevelComment.snippet.publishedAt,
+      replyCount: item.snippet.totalReplyCount,
+    })
+  );
+
+  return { comments, nextPageToken: data.nextPageToken };
 }
 
 /**
