@@ -63,6 +63,7 @@ export default function PlatformsIndexPage() {
   const [accounts, setAccounts] = useState<Record<string, AccountStatus>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [disconnectingPlatform, setDisconnectingPlatform] = useState<string | null>(null);
 
   useEffect(() => {
     if (authStatus === 'unauthenticated') {
@@ -88,6 +89,30 @@ export default function PlatformsIndexPage() {
 
     fetchStatus();
   }, [authStatus]);
+
+  async function handleDisconnect(platform: PlatformKey) {
+    const config = PLATFORM_CONFIG[platform];
+    if (!confirm(`Are you sure you want to disconnect your ${config?.displayName ?? platform} account?`)) {
+      return;
+    }
+
+    setDisconnectingPlatform(platform);
+    setError('');
+    try {
+      const res = await fetch(`/api/accounts/${platform.toLowerCase()}/disconnect`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error('Failed to disconnect account');
+      setAccounts((prev) => ({
+        ...prev,
+        [platform]: { connected: false },
+      }));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Disconnect failed');
+    } finally {
+      setDisconnectingPlatform(null);
+    }
+  }
 
   if (authStatus === 'loading' || authStatus === 'unauthenticated') {
     return <div className={styles.loading}>Loading...</div>;
@@ -126,71 +151,82 @@ export default function PlatformsIndexPage() {
 
           return (
             <div key={platform} className={styles.card}>
-              <div className={styles.cardTop} style={{ borderColor: isConnected ? color : 'transparent' }}>
-                <div className={styles.iconWrap} style={{ color }}>
-                  {PLATFORM_ICONS[platform]}
+              <div className={styles.cardBody}>
+                <div className={styles.cardTop} style={{ borderColor: isConnected ? color : 'transparent' }}>
+                  <div className={styles.iconWrap} style={{ color }}>
+                    {PLATFORM_ICONS[platform]}
+                  </div>
+                  <div className={styles.platformInfo}>
+                    <span className={styles.platformName}>{config?.displayName ?? platform}</span>
+                    <span
+                      className={`${styles.statusBadge} ${isConnected ? styles.statusConnected : styles.statusDisconnected}`}
+                    >
+                      {isConnected ? 'Connected' : 'Not connected'}
+                    </span>
+                  </div>
                 </div>
-                <div className={styles.platformInfo}>
-                  <span className={styles.platformName}>{config?.displayName ?? platform}</span>
-                  <span
-                    className={`${styles.statusBadge} ${isConnected ? styles.statusConnected : styles.statusDisconnected}`}
-                  >
-                    {isConnected ? 'Connected' : 'Not connected'}
-                  </span>
-                </div>
-              </div>
 
-              {isConnected && account ? (
-                <div className={styles.accountSection}>
-                  <div className={styles.accountRow}>
-                    {account.avatarUrl ? (
-                      <img
-                        className={styles.avatar}
-                        src={account.avatarUrl}
-                        alt={account.displayName ?? ''}
-                      />
-                    ) : (
-                      <div className={styles.avatarPlaceholder} style={{ backgroundColor: color + '20', color }}>
-                        {(config?.displayName ?? platform).charAt(0)}
+                {isConnected && account ? (
+                  <div className={styles.accountSection}>
+                    <div className={styles.accountRow}>
+                      {account.avatarUrl ? (
+                        <img
+                          className={styles.avatar}
+                          src={account.avatarUrl}
+                          alt={account.displayName ?? ''}
+                        />
+                      ) : (
+                        <div className={styles.avatarPlaceholder} style={{ backgroundColor: color + '20', color }}>
+                          {(config?.displayName ?? platform).charAt(0)}
+                        </div>
+                      )}
+                      <div className={styles.accountMeta}>
+                        {account.displayName && (
+                          <span className={styles.displayName}>{account.displayName}</span>
+                        )}
+                        {account.handle && (
+                          <span className={styles.handle}>{account.handle}</span>
+                        )}
+                      </div>
+                    </div>
+                    {account.lastSyncedAt && (
+                      <div className={styles.lastSynced}>
+                        Last synced {new Date(account.lastSyncedAt).toLocaleDateString()}
                       </div>
                     )}
-                    <div className={styles.accountMeta}>
-                      {account.displayName && (
-                        <span className={styles.displayName}>{account.displayName}</span>
-                      )}
-                      {account.handle && (
-                        <span className={styles.handle}>{account.handle}</span>
-                      )}
-                    </div>
                   </div>
-                  {account.lastSyncedAt && (
-                    <div className={styles.lastSynced}>
-                      Last synced {new Date(account.lastSyncedAt).toLocaleDateString()}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className={styles.disconnectedSection}>
-                  <p>Connect your {config?.displayName ?? platform} account to get started.</p>
-                </div>
-              )}
+                ) : (
+                  <div className={styles.disconnectedSection}>
+                    <p>Connect your {config?.displayName ?? platform} account to get started.</p>
+                  </div>
+                )}
 
-              <div className={styles.capabilities}>
-                {capabilities.map((cap) => (
-                  <span key={cap} className={styles.capBadge}>
-                    {cap}
-                  </span>
-                ))}
+                <div className={styles.capabilities}>
+                  {capabilities.map((cap) => (
+                    <span key={cap} className={styles.capBadge}>
+                      {cap}
+                    </span>
+                  ))}
+                </div>
               </div>
 
               <div className={styles.actions}>
                 {isConnected ? (
-                  <Link
-                    href={`/dashboard/platforms/${platform.toLowerCase()}`}
-                    className={styles.browseBtn}
-                  >
-                    Browse {config?.displayName}
-                  </Link>
+                  <>
+                    <Link
+                      href={`/dashboard/platforms/${platform.toLowerCase()}`}
+                      className={styles.browseBtn}
+                    >
+                      Browse {config?.displayName}
+                    </Link>
+                    <button
+                      className={styles.disconnectBtn}
+                      onClick={() => handleDisconnect(platform)}
+                      disabled={disconnectingPlatform === platform}
+                    >
+                      {disconnectingPlatform === platform ? 'Disconnecting...' : 'Disconnect'}
+                    </button>
+                  </>
                 ) : (
                   <a
                     href={`/api/auth/${platform.toLowerCase()}/link?returnTo=/dashboard/platforms`}

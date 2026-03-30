@@ -76,9 +76,6 @@ export default function NavBar() {
               <Link href="/dashboard/schedule" className={styles.link}>
                 Schedule
               </Link>
-              <Link href="/dashboard/accounts" className={styles.link}>
-                Accounts
-              </Link>
             </>
           )}
           {status === 'loading' ? null : session ? (

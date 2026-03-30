@@ -75,6 +75,12 @@
   color: var(--text-secondary);
 }
 
+.headerActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .syncBtn {
   padding: 0.5rem 1rem;
   border: 1px solid var(--border);
@@ -92,6 +98,28 @@
 }
 
 .syncBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.disconnectBtn {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.disconnectBtn:hover {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.disconnectBtn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

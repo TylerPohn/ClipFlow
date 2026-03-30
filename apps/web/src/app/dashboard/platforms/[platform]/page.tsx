@@ -64,6 +64,7 @@ export default function PlatformBrowsePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [syncing, setSyncing] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [importingId, setImportingId] = useState<string | null>(null);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -218,6 +219,25 @@ export default function PlatformBrowsePage() {
     }
   }
 
+  async function handleDisconnect() {
+    if (!confirm(`Are you sure you want to disconnect your ${config?.displayName} account?`)) {
+      return;
+    }
+    setDisconnecting(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/accounts/${rawPlatform}/disconnect`, { method: 'POST' });
+      if (!res.ok) throw new Error('Failed to disconnect account');
+      setConnected(false);
+      setAccount(null);
+      setVideos([]);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Disconnect failed');
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
   if (authStatus === 'loading' || authStatus === 'unauthenticated') {
     return <div className={styles.loading}>Loading...</div>;
   }
@@ -296,13 +316,22 @@ export default function PlatformBrowsePage() {
             )}
           </div>
         </div>
-        <button
-          className={styles.syncBtn}
-          onClick={handleSync}
-          disabled={syncing}
-        >
-          {syncing ? 'Syncing...' : 'Sync Now'}
-        </button>
+        <div className={styles.headerActions}>
+          <button
+            className={styles.syncBtn}
+            onClick={handleSync}
+            disabled={syncing}
+          >
+            {syncing ? 'Syncing...' : 'Sync Now'}
+          </button>
+          <button
+            className={styles.disconnectBtn}
+            onClick={handleDisconnect}
+            disabled={disconnecting}
+          >
+            {disconnecting ? 'Disconnecting...' : 'Disconnect'}
+          </button>
+        </div>
       </div>
 
       {error && <div className={styles.error}>{error}</div>}
