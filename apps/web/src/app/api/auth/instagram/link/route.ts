@@ -22,13 +22,15 @@ export async function GET(request: Request) {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
-    scope: 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement',
+    scope: 'instagram_business_basic,instagram_business_content_publish',
     response_type: 'code',
     state,
+    enable_fb_login: '0',
+    force_authentication: '1',
   });
 
   const response = NextResponse.redirect(
-    `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}`
+    `https://www.instagram.com/oauth/authorize?${params.toString()}`
   );
   response.cookies.set('instagram_oauth_state', state, {
     httpOnly: true,

@@ -39,15 +39,18 @@ export async function GET(request: Request) {
   const clientSecret = process.env.INSTAGRAM_CLIENT_SECRET!;
   const redirectUri = `${process.env.NEXTAUTH_URL}/api/auth/instagram/callback`;
 
-  // 1. Exchange code for short-lived token
-  const tokenRes = await fetch(
-    `https://graph.facebook.com/v21.0/oauth/access_token?${new URLSearchParams({
+  // 1. Exchange code for short-lived token via Instagram API
+  const tokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
       client_id: clientId,
       client_secret: clientSecret,
+      grant_type: 'authorization_code',
       redirect_uri: redirectUri,
       code,
-    })}`,
-  );
+    }),
+  });
   const tokenData = await tokenRes.json();
 
   if (!tokenData.access_token) {
@@ -59,78 +62,46 @@ export async function GET(request: Request) {
 
   // 2. Exchange for long-lived token (60-day expiry)
   const longLivedRes = await fetch(
-    `https://graph.facebook.com/v21.0/oauth/access_token?${new URLSearchParams({
-      grant_type: 'fb_exchange_token',
-      client_id: clientId,
+    `https://graph.instagram.com/access_token?${new URLSearchParams({
+      grant_type: 'ig_exchange_token',
       client_secret: clientSecret,
-      fb_exchange_token: tokenData.access_token,
+      access_token: tokenData.access_token,
     })}`,
   );
   const longLivedData = await longLivedRes.json();
 
   const accessToken = longLivedData.access_token ?? tokenData.access_token;
-  const expiresIn = longLivedData.expires_in ?? tokenData.expires_in;
+  const expiresIn = longLivedData.expires_in ?? 3600;
 
-  // 3. Get Facebook Pages
-  const pagesRes = await fetch(
-    `https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`,
+  // 3. Get Instagram user profile
+  const profileRes = await fetch(
+    `https://graph.instagram.com/v21.0/me?fields=user_id,username&access_token=${accessToken}`,
   );
-  const pagesData = await pagesRes.json();
+  const profileData = await profileRes.json();
 
-  if (!pagesData.data?.length) {
-    console.error('No Facebook Pages found:', pagesData);
-    return NextResponse.redirect(
-      new URL(`${returnTo}?instagram_error=no_pages`, process.env.NEXTAUTH_URL)
-    );
-  }
-
-  // 4. Find the Instagram Business Account from the first page with one
-  let igUserId: string | null = null;
-  let igUsername: string | null = null;
-  let pageAccessToken: string = accessToken;
-
-  for (const page of pagesData.data) {
-    const igRes = await fetch(
-      `https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`,
-    );
-    const igData = await igRes.json();
-
-    if (igData.instagram_business_account?.id) {
-      igUserId = igData.instagram_business_account.id;
-      pageAccessToken = page.access_token;
-
-      // Get the IG username
-      const profileRes = await fetch(
-        `https://graph.facebook.com/v21.0/${igUserId}?fields=username&access_token=${pageAccessToken}`,
-      );
-      const profileData = await profileRes.json();
-      igUsername = profileData.username ?? null;
-      break;
-    }
-  }
+  const igUserId = profileData.user_id ?? tokenData.user_id;
+  const igUsername = profileData.username ?? null;
 
   if (!igUserId) {
-    console.error('No Instagram Business Account found on any Page');
+    console.error('Could not get Instagram user ID:', profileData);
     return NextResponse.redirect(
-      new URL(`${returnTo}?instagram_error=no_ig_business_account`, process.env.NEXTAUTH_URL)
+      new URL(`${returnTo}?instagram_error=no_ig_account`, process.env.NEXTAUTH_URL)
     );
   }
 
-  const tokenExpiresAt = expiresIn
-    ? new Date(Date.now() + expiresIn * 1000)
-    : null;
+  const tokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
 
-  // 5. Upsert PlatformAccount
+  // 4. Upsert PlatformAccount
   await prisma.platformAccount.upsert({
     where: {
       userId_platform_platformUserId: {
         userId,
         platform: 'INSTAGRAM',
-        platformUserId: igUserId,
+        platformUserId: String(igUserId),
       },
     },
     update: {
-      accessToken: pageAccessToken,
+      accessToken,
       refreshToken: null,
       tokenExpiresAt,
       handle: igUsername,
@@ -138,43 +109,39 @@ export async function GET(request: Request) {
     create: {
       userId,
       platform: 'INSTAGRAM',
-      platformUserId: igUserId,
-      accessToken: pageAccessToken,
+      platformUserId: String(igUserId),
+      accessToken,
       refreshToken: null,
       tokenExpiresAt,
       handle: igUsername,
     },
   });
 
-  // 6. Upsert NextAuth Account for backwards compatibility
+  // 5. Upsert NextAuth Account for backwards compatibility
   await prisma.account.upsert({
     where: {
       provider_providerAccountId: {
         provider: 'instagram',
-        providerAccountId: igUserId,
+        providerAccountId: String(igUserId),
       },
     },
     update: {
-      access_token: pageAccessToken,
+      access_token: accessToken,
       refresh_token: null,
-      expires_at: expiresIn
-        ? Math.floor(Date.now() / 1000) + expiresIn
-        : null,
+      expires_at: Math.floor(Date.now() / 1000) + expiresIn,
       token_type: 'Bearer',
-      scope: 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement',
+      scope: 'instagram_business_basic,instagram_business_content_publish',
     },
     create: {
       userId,
       type: 'oauth',
       provider: 'instagram',
-      providerAccountId: igUserId,
-      access_token: pageAccessToken,
+      providerAccountId: String(igUserId),
+      access_token: accessToken,
       refresh_token: null,
-      expires_at: expiresIn
-        ? Math.floor(Date.now() / 1000) + expiresIn
-        : null,
+      expires_at: Math.floor(Date.now() / 1000) + expiresIn,
       token_type: 'Bearer',
-      scope: 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement',
+      scope: 'instagram_business_basic,instagram_business_content_publish',
     },
   });
 
