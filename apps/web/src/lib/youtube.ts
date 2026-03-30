@@ -43,7 +43,9 @@ export async function getValidAccessToken(platformAccountId: string): Promise<st
     });
 
     if (!res.ok) {
-      throw new Error(`Token refresh failed: ${res.status}`);
+      const errorBody = await res.text();
+      console.error(`YouTube token refresh failed: ${res.status}`, errorBody);
+      throw new Error(`Token refresh failed: ${res.status} - ${errorBody}`);
     }
 
     const data: GoogleTokenResponse = await res.json();
