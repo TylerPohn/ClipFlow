@@ -51,6 +51,10 @@ export default function NavBar() {
                 </button>
                 {platformsOpen && (
                   <div className={styles.dropdownMenu}>
+                    <Link href="/dashboard/platforms" className={styles.dropdownItem} onClick={() => setPlatformsOpen(false)}>
+                      All Platforms
+                    </Link>
+                    <div className={styles.dropdownDivider} />
                     <Link href="/dashboard/platforms/youtube" className={styles.dropdownItem} onClick={() => setPlatformsOpen(false)}>
                       YouTube
                     </Link>
