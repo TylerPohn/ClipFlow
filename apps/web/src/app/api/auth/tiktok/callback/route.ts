@@ -105,7 +105,7 @@ export async function GET(request: Request) {
         ? Math.floor(Date.now() / 1000) + tokenData.expires_in
         : null,
       token_type: tokenData.token_type ?? 'Bearer',
-      scope: tokenData.scope ?? 'user.info.basic,video.publish,video.upload',
+      scope: tokenData.scope ?? 'user.info.basic,video.publish,video.upload,video.list',
     },
     create: {
       userId,
@@ -118,7 +118,7 @@ export async function GET(request: Request) {
         ? Math.floor(Date.now() / 1000) + tokenData.expires_in
         : null,
       token_type: tokenData.token_type ?? 'Bearer',
-      scope: tokenData.scope ?? 'user.info.basic,video.publish,video.upload',
+      scope: tokenData.scope ?? 'user.info.basic,video.publish,video.upload,video.list',
     },
   });
 

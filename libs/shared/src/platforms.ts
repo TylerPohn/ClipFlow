@@ -51,8 +51,8 @@ export const PLATFORM_CONFIG: Record<string, PlatformConfig> = {
   },
   TIKTOK: {
     displayName: 'TikTok',
-    oauthScopes: ['user.info.basic', 'video.publish', 'video.upload'],
-    supportsSync: false,
+    oauthScopes: ['user.info.basic', 'video.publish', 'video.upload', 'video.list'],
+    supportsSync: true,
     supportsPost: true,
     postFields: {
       title: true,

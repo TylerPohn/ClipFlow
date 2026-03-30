@@ -2,6 +2,8 @@ import { Job } from 'bullmq';
 import type { VideoJob } from '@clipflow/shared';
 import { prisma } from '@clipflow/db';
 import { handleYouTubeSync } from './youtube-sync';
+import { handleInstagramSync } from './instagram-sync';
+import { handleTikTokSync } from './tiktok-sync';
 
 export async function handlePlatformSync(job: Job<VideoJob>) {
   const { platformAccountId, specificVideoId } = job.data as any;
@@ -23,6 +25,12 @@ export async function handlePlatformSync(job: Job<VideoJob>) {
           },
         },
       } as Job<VideoJob>);
+      break;
+    case 'INSTAGRAM':
+      await handleInstagramSync(job);
+      break;
+    case 'TIKTOK':
+      await handleTikTokSync(job);
       break;
     default:
       console.log(`Sync not yet implemented for platform: ${account.platform}`);

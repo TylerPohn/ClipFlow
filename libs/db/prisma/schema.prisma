@@ -99,6 +99,12 @@ model Video {
   status              VideoStatus @default(PENDING)
   rawStorageKey       String?
   processedStorageKey String?
+  viewCount           Int?
+  likeCount           Int?
+  commentCount        Int?
+  shareCount          Int?
+  platform            String?
+  platformMediaId     String?
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 

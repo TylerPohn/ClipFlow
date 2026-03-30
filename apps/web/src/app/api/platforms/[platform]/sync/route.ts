@@ -4,7 +4,7 @@ import { prisma } from '@clipflow/db';
 import { videoQueue } from '@/lib/queue';
 import { JobType } from '@clipflow/shared';
 
-const SYNC_PLATFORMS = ['YOUTUBE'];
+const SYNC_PLATFORMS = ['YOUTUBE', 'INSTAGRAM', 'TIKTOK'];
 
 export async function POST(
   _request: Request,
@@ -50,7 +50,28 @@ export async function POST(
     return NextResponse.json({ status: 'sync_queued', channelId });
   }
 
-  // Future platforms with sync support would go here
+  if (platform === 'INSTAGRAM') {
+    await videoQueue.add(`instagram-sync-${platformAccount.platformUserId}`, {
+      type: JobType.PLATFORM_SYNC,
+      videoId: '',
+      userId,
+      platformAccountId: platformAccount.id,
+    } as any);
+
+    return NextResponse.json({ status: 'sync_queued', igUserId: platformAccount.platformUserId });
+  }
+
+  if (platform === 'TIKTOK') {
+    await videoQueue.add(`tiktok-sync-${platformAccount.platformUserId}`, {
+      type: JobType.PLATFORM_SYNC,
+      videoId: '',
+      userId,
+      platformAccountId: platformAccount.id,
+    } as any);
+
+    return NextResponse.json({ status: 'sync_queued', tiktokUserId: platformAccount.platformUserId });
+  }
+
   return NextResponse.json(
     { error: 'Sync not supported for this platform' },
     { status: 400 }
