@@ -2,7 +2,7 @@ import { Job } from 'bullmq';
 import type { VideoJob } from '@clipflow/shared';
 import { prisma } from '@clipflow/db';
 
-const GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
+const GRAPH_API_BASE = 'https://graph.instagram.com/v21.0';
 
 async function refreshAccessToken(platformAccountId: string): Promise<string> {
   const account = await prisma.platformAccount.findUnique({
@@ -21,12 +21,10 @@ async function refreshAccessToken(platformAccountId: string): Promise<string> {
     account.refreshToken
   ) {
     const res = await fetch(
-      `${GRAPH_API_BASE}/oauth/access_token?` +
+      `${GRAPH_API_BASE}/refresh_access_token?` +
         new URLSearchParams({
-          grant_type: 'fb_exchange_token',
-          client_id: process.env.FACEBOOK_APP_ID!,
-          client_secret: process.env.FACEBOOK_APP_SECRET!,
-          fb_exchange_token: account.accessToken,
+          grant_type: 'ig_refresh_token',
+          access_token: account.accessToken,
         })
     );
 
@@ -129,7 +127,9 @@ export async function handleInstagramSync(job: Job<VideoJob>) {
   while (url) {
     const res = await fetch(url);
     if (!res.ok) {
-      throw new Error(`Instagram media fetch failed: ${res.status}`);
+      const errorBody = await res.text();
+      console.error(`Instagram media fetch failed: ${res.status}`, errorBody);
+      throw new Error(`Instagram media fetch failed: ${res.status} - ${errorBody}`);
     }
     const data = (await res.json()) as { data?: IGMedia[]; paging?: { next?: string } };
     allMedia.push(...(data.data ?? []));
