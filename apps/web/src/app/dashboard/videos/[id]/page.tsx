@@ -109,6 +109,7 @@ export default function VideoDetailPage() {
 
   // Per-platform form state and publishing state
   const [platformForms, setPlatformForms] = useState<Record<string, PlatformFormState>>({});
+  const [scheduledAtForms, setScheduledAtForms] = useState<Record<string, string>>({});
   const [publishingPlatforms, setPublishingPlatforms] = useState<Set<string>>(new Set());
   const [publishErrors, setPublishErrors] = useState<Record<string, string>>({});
 
@@ -262,7 +263,7 @@ export default function VideoDetailPage() {
     return video?.posts?.find((p) => p.platform === platform);
   }
 
-  async function handlePublish(platform: string) {
+  async function handlePublish(platform: string, scheduledAt?: string) {
     setPublishingPlatforms((prev) => new Set(prev).add(platform));
     setPublishErrors((prev) => ({ ...prev, [platform]: '' }));
 
@@ -280,22 +281,40 @@ export default function VideoDetailPage() {
       if (config.postFields.title) caption = form.title;
       else if (config.postFields.description) caption = form.description;
 
+      const body: Record<string, unknown> = {
+        platform,
+        caption,
+        hashtags: hashtagList,
+        title: form.title,
+        description: form.description,
+        visibility: form.visibility,
+      };
+
+      if (scheduledAt) {
+        body.scheduledAt = new Date(scheduledAt).toISOString();
+      }
+
       const res = await fetch(`/api/videos/${id}/publish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform,
-          caption,
-          hashtags: hashtagList,
-          title: form.title,
-          description: form.description,
-          visibility: form.visibility,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Publish failed');
+      }
+
+      // If scheduled, just refresh and clear the form
+      if (scheduledAt) {
+        await fetchVideo();
+        setScheduledAtForms((prev) => ({ ...prev, [platform]: '' }));
+        setPublishingPlatforms((prev) => {
+          const next = new Set(prev);
+          next.delete(platform);
+          return next;
+        });
+        return;
       }
 
       // Poll until post status resolves
@@ -575,25 +594,57 @@ export default function VideoDetailPage() {
                         </div>
                       )}
 
-                      <button
-                        className="btn-primary"
-                        style={{ marginTop: '1rem', width: '100%' }}
-                        onClick={() => handlePublish(platformKey)}
-                        disabled={
-                          isPublishing ||
-                          video.status !== 'READY' ||
-                          post?.status === 'UPLOADING' ||
-                          post?.status === 'POSTED'
-                        }
-                      >
-                        {isPublishing
-                          ? 'Publishing...'
-                          : post?.status === 'FAILED'
-                            ? `Retry Post to ${config.displayName}`
-                            : post?.status === 'POSTED'
-                              ? `Posted to ${config.displayName}`
-                              : `Post to ${config.displayName}`}
-                      </button>
+                      <div className={styles.field} style={{ marginTop: '0.75rem' }}>
+                        <label>Schedule For (optional)</label>
+                        <input
+                          type="datetime-local"
+                          value={scheduledAtForms[platformKey] || ''}
+                          onChange={(e) =>
+                            setScheduledAtForms((prev) => ({ ...prev, [platformKey]: e.target.value }))
+                          }
+                        />
+                      </div>
+
+                      <div className={styles.actions} style={{ marginTop: '1rem' }}>
+                        {scheduledAtForms[platformKey] ? (
+                          <button
+                            className="btn-primary"
+                            style={{ flex: 1 }}
+                            onClick={() => handlePublish(platformKey, scheduledAtForms[platformKey])}
+                            disabled={
+                              isPublishing ||
+                              video.status !== 'READY' ||
+                              post?.status === 'UPLOADING' ||
+                              post?.status === 'POSTED' ||
+                              post?.status === 'SCHEDULED'
+                            }
+                          >
+                            {isPublishing ? 'Scheduling...' : `Schedule for ${config.displayName}`}
+                          </button>
+                        ) : (
+                          <button
+                            className="btn-primary"
+                            style={{ flex: 1 }}
+                            onClick={() => handlePublish(platformKey)}
+                            disabled={
+                              isPublishing ||
+                              video.status !== 'READY' ||
+                              post?.status === 'UPLOADING' ||
+                              post?.status === 'POSTED'
+                            }
+                          >
+                            {isPublishing
+                              ? 'Publishing...'
+                              : post?.status === 'FAILED'
+                                ? `Retry Post to ${config.displayName}`
+                                : post?.status === 'POSTED'
+                                  ? `Posted to ${config.displayName}`
+                                  : post?.status === 'SCHEDULED'
+                                    ? `Scheduled`
+                                    : `Post to ${config.displayName}`}
+                          </button>
+                        )}
+                      </div>
 
                       {publishError && <p className={styles.errorText}>{publishError}</p>}
 

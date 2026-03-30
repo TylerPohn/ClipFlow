@@ -18,9 +18,10 @@ export async function handleScheduleCheck(job: Job<VideoJob>): Promise<void> {
     where: {
       status: PostStatus.SCHEDULED,
       scheduledAt: { lte: new Date() },
-      migration: {
-        status: MigrationStatus.ACTIVE,
-      },
+      OR: [
+        { migration: { status: MigrationStatus.ACTIVE } },
+        { migrationId: null },
+      ],
     },
     include: {
       video: true,
@@ -137,6 +138,7 @@ export async function handleScheduleCheck(job: Job<VideoJob>): Promise<void> {
     }
 
     // Check if any active migrations are now complete
+    // (only relevant for migration-based posts, not standalone)
     const activeMigrations = await prisma.migration.findMany({
       where: { status: MigrationStatus.ACTIVE },
       include: {

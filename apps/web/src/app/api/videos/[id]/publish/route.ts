@@ -8,6 +8,7 @@ interface PublishBody {
   platform?: string;
   caption?: string;
   hashtags?: string[];
+  scheduledAt?: string;
 }
 
 export async function POST(
@@ -46,6 +47,26 @@ export async function POST(
     );
   }
 
+  // Determine if this is a scheduled post or an immediate publish
+  const isScheduled = !!body.scheduledAt;
+  let scheduledAt: Date | null = null;
+
+  if (isScheduled) {
+    scheduledAt = new Date(body.scheduledAt!);
+    if (isNaN(scheduledAt.getTime())) {
+      return NextResponse.json(
+        { error: 'Invalid scheduledAt date' },
+        { status: 400 }
+      );
+    }
+    if (scheduledAt <= new Date()) {
+      return NextResponse.json(
+        { error: 'scheduledAt must be in the future' },
+        { status: 400 }
+      );
+    }
+  }
+
   // Reuse existing FAILED post for retries instead of creating duplicates
   const existingPost = await prisma.post.findFirst({
     where: {
@@ -61,7 +82,8 @@ export async function POST(
         data: {
           caption: body.caption ?? null,
           hashtags: body.hashtags ?? [],
-          status: PostStatus.UPLOADING,
+          status: isScheduled ? PostStatus.SCHEDULED : PostStatus.UPLOADING,
+          scheduledAt,
         },
       })
     : await prisma.post.create({
@@ -70,21 +92,25 @@ export async function POST(
           platform: body.platform as Platform,
           caption: body.caption ?? null,
           hashtags: body.hashtags ?? [],
-          status: PostStatus.UPLOADING,
+          status: isScheduled ? PostStatus.SCHEDULED : PostStatus.UPLOADING,
+          scheduledAt,
         },
       });
 
-  await videoQueue.add(JobType.UPLOAD, {
-    type: JobType.UPLOAD,
-    videoId: video.id,
-    userId,
-    options: {
-      postId: post.id,
-      platform: body.platform,
-      caption: body.caption,
-      hashtags: body.hashtags,
-    },
-  });
+  // Only enqueue immediate upload if not scheduled
+  if (!isScheduled) {
+    await videoQueue.add(JobType.UPLOAD, {
+      type: JobType.UPLOAD,
+      videoId: video.id,
+      userId,
+      options: {
+        postId: post.id,
+        platform: body.platform,
+        caption: body.caption,
+        hashtags: body.hashtags,
+      },
+    });
+  }
 
   return NextResponse.json(post, { status: 201 });
 }
