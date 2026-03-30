@@ -21,7 +21,7 @@ const PLATFORM_ORDER: PlatformKey[] = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X'];
 const PLATFORM_LINK_URLS: Record<PlatformKey, string | null> = {
   YOUTUBE: '/api/auth/youtube/link?returnTo=/dashboard/accounts',
   TIKTOK: '/api/auth/tiktok/link?returnTo=/dashboard/accounts',
-  INSTAGRAM: null, // Not implemented yet
+  INSTAGRAM: '/api/auth/instagram/link?returnTo=/dashboard/accounts',
   X: '/api/auth/x/link?returnTo=/dashboard/accounts',
 };
 
