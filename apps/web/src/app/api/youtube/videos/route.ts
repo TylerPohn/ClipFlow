@@ -47,12 +47,15 @@ export async function GET(request: Request) {
   }
 
   // 4. List uploaded video IDs from the channel's uploads playlist
-  const { videoIds, nextPageToken } = await listUploadedVideoIds(
+  const { videoIds: rawVideoIds, nextPageToken } = await listUploadedVideoIds(
     accessToken,
     uploadsPlaylistId,
     maxResults,
     pageToken
   );
+
+  // Deduplicate video IDs (YouTube API can return overlapping results across pages)
+  const videoIds = [...new Set(rawVideoIds)];
 
   if (videoIds.length === 0) {
     return NextResponse.json({

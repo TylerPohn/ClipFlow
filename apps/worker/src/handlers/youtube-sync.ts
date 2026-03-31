@@ -99,20 +99,36 @@ export async function handleYouTubeSync(job: Job<VideoJob>) {
       throw new Error('Missing uploadsPlaylistId in PlatformAccount metadata');
     }
 
-    // Full sync: list all videos from uploads playlist
-    const playlistRes = await fetch(
-      `${YOUTUBE_API_BASE}/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
+    // Full sync: list all videos from uploads playlist (paginate through all pages)
+    videoIds = [];
+    let plPageToken: string | undefined;
+    do {
+      const plParams = new URLSearchParams({
+        part: 'contentDetails',
+        playlistId: uploadsPlaylistId,
+        maxResults: '50',
+      });
+      if (plPageToken) plParams.set('pageToken', plPageToken);
 
-    if (!playlistRes.ok) {
-      throw new Error(`playlistItems.list failed: ${playlistRes.status}`);
-    }
+      const playlistRes = await fetch(
+        `${YOUTUBE_API_BASE}/playlistItems?${plParams}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
 
-    const playlistData = await playlistRes.json();
-    videoIds = (playlistData.items ?? []).map(
-      (item: { contentDetails: { videoId: string } }) => item.contentDetails.videoId
-    );
+      if (!playlistRes.ok) {
+        throw new Error(`playlistItems.list failed: ${playlistRes.status}`);
+      }
+
+      const playlistData = await playlistRes.json();
+      const pageIds = (playlistData.items ?? []).map(
+        (item: { contentDetails: { videoId: string } }) => item.contentDetails.videoId
+      );
+      videoIds.push(...pageIds);
+      plPageToken = playlistData.nextPageToken;
+    } while (plPageToken);
+
+    // Deduplicate (YouTube API can return overlapping results across pages)
+    videoIds = [...new Set(videoIds)];
   }
 
   if (videoIds.length === 0) {
@@ -123,18 +139,22 @@ export async function handleYouTubeSync(job: Job<VideoJob>) {
 
   await job.updateProgress(30);
 
-  // Get full video details (batched, up to 50)
-  const videosRes = await fetch(
-    `${YOUTUBE_API_BASE}/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
+  // Get full video details (batched in chunks of 50)
+  const videos: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < videoIds.length; i += 50) {
+    const batch = videoIds.slice(i, i + 50);
+    const videosRes = await fetch(
+      `${YOUTUBE_API_BASE}/videos?part=snippet,statistics,contentDetails&id=${batch.join(',')}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
 
-  if (!videosRes.ok) {
-    throw new Error(`videos.list failed: ${videosRes.status}`);
+    if (!videosRes.ok) {
+      throw new Error(`videos.list failed: ${videosRes.status}`);
+    }
+
+    const videosData = await videosRes.json();
+    videos.push(...(videosData.items ?? []));
   }
-
-  const videosData = await videosRes.json();
-  const videos = videosData.items ?? [];
 
   await job.updateProgress(60);
 
@@ -154,6 +174,10 @@ export async function handleYouTubeSync(job: Job<VideoJob>) {
       where: { userId, sourceUrl },
     });
 
+    const viewCount = parseInt(video.statistics?.viewCount ?? '0', 10);
+    const likeCount = parseInt(video.statistics?.likeCount ?? '0', 10);
+    const commentCount = parseInt(video.statistics?.commentCount ?? '0', 10);
+
     if (!existing) {
       await prisma.video.create({
         data: {
@@ -163,6 +187,11 @@ export async function handleYouTubeSync(job: Job<VideoJob>) {
           description: video.snippet.description ?? null,
           duration,
           thumbnailUrl,
+          platform: 'YOUTUBE',
+          platformMediaId: video.id,
+          viewCount,
+          likeCount,
+          commentCount,
           status: 'PENDING',
         },
       });
@@ -176,6 +205,11 @@ export async function handleYouTubeSync(job: Job<VideoJob>) {
           description: video.snippet.description ?? null,
           duration,
           thumbnailUrl: thumbnailUrl ?? existing.thumbnailUrl,
+          platform: 'YOUTUBE',
+          platformMediaId: video.id,
+          viewCount,
+          likeCount,
+          commentCount,
         },
       });
     }

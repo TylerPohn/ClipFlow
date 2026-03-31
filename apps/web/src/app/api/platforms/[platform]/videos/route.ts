@@ -1,12 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth';
 import { prisma } from '@clipflow/db';
-import {
-  getValidAccessToken,
-  listUploadedVideoIds,
-  getVideoDetails,
-  parseDuration,
-} from '@/lib/youtube';
 
 const VALID_PLATFORMS = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X'];
 
@@ -34,99 +28,7 @@ export async function GET(
     50
   );
 
-  if (platform === 'YOUTUBE') {
-    // Delegate to YouTube logic
-    const platformAccount = await prisma.platformAccount.findFirst({
-      where: { userId, platform: 'YOUTUBE' },
-    });
-    if (!platformAccount) {
-      return NextResponse.json(
-        { error: 'No YouTube channel linked' },
-        { status: 400 }
-      );
-    }
-
-    const accessToken = await getValidAccessToken(platformAccount.id);
-
-    const metadata = platformAccount.metadata as { uploadsPlaylistId?: string } | null;
-    const uploadsPlaylistId = metadata?.uploadsPlaylistId;
-    if (!uploadsPlaylistId) {
-      return NextResponse.json(
-        { error: 'Missing uploads playlist ID' },
-        { status: 400 }
-      );
-    }
-
-    const { videoIds, nextPageToken } = await listUploadedVideoIds(
-      accessToken,
-      uploadsPlaylistId,
-      maxResults,
-      pageToken
-    );
-
-    if (videoIds.length === 0) {
-      return NextResponse.json({
-        videos: [],
-        nextPageToken: nextPageToken ?? null,
-        channel: {
-          channelName: platformAccount.displayName,
-          channelHandle: platformAccount.handle,
-          thumbnailUrl: platformAccount.avatarUrl,
-        },
-      });
-    }
-
-    const ytVideos = await getVideoDetails(accessToken, videoIds);
-
-    const sourceUrls = ytVideos.map(
-      (v) => `https://www.youtube.com/watch?v=${v.videoId}`
-    );
-
-    const importedVideos = await prisma.video.findMany({
-      where: {
-        userId,
-        sourceUrl: { in: sourceUrls },
-      },
-      select: {
-        id: true,
-        sourceUrl: true,
-      },
-    });
-
-    const importedMap = new Map(
-      importedVideos.map((v) => [v.sourceUrl, v.id])
-    );
-
-    const videos = ytVideos.map((v) => {
-      const url = `https://www.youtube.com/watch?v=${v.videoId}`;
-      const clipflowVideoId = importedMap.get(url) ?? null;
-      return {
-        videoId: v.videoId,
-        title: v.title,
-        description: v.description,
-        thumbnailUrl: v.thumbnailUrl,
-        duration: parseDuration(v.duration),
-        publishedAt: v.publishedAt,
-        viewCount: v.viewCount,
-        likeCount: v.likeCount,
-        commentCount: v.commentCount,
-        imported: clipflowVideoId !== null,
-        clipflowVideoId,
-      };
-    });
-
-    return NextResponse.json({
-      videos,
-      nextPageToken: nextPageToken ?? null,
-      channel: {
-        channelName: platformAccount.displayName,
-        channelHandle: platformAccount.handle,
-        thumbnailUrl: platformAccount.avatarUrl,
-      },
-    });
-  }
-
-  // For Instagram, TikTok, etc. — return synced videos from the database
+  // All platforms (including YouTube) — return synced videos from the database
   const platformAccount = await prisma.platformAccount.findFirst({
     where: { userId, platform },
   });
@@ -140,9 +42,22 @@ export async function GET(
 
   const skip = pageToken ? parseInt(pageToken, 10) : 0;
 
+  // For YouTube, also match videos with platform=null that have YouTube sourceUrls
+  // (from before the sync handler set the platform field)
+  const videoWhere =
+    platform === 'YOUTUBE'
+      ? {
+          userId,
+          OR: [
+            { platform: 'YOUTUBE' },
+            { platform: null, sourceUrl: { startsWith: 'https://www.youtube.com/watch' } },
+          ],
+        }
+      : { userId, platform };
+
   const [videos, totalCount] = await Promise.all([
     prisma.video.findMany({
-      where: { userId, platform },
+      where: videoWhere,
       orderBy: { createdAt: 'desc' },
       skip,
       take: maxResults,
@@ -161,11 +76,17 @@ export async function GET(
         createdAt: true,
       },
     }),
-    prisma.video.count({ where: { userId, platform } }),
+    prisma.video.count({ where: videoWhere }),
   ]);
 
   const nextSkip = skip + maxResults;
   const nextPageTokenValue = nextSkip < totalCount ? String(nextSkip) : null;
+
+  const accountInfo = {
+    displayName: platformAccount.displayName,
+    handle: platformAccount.handle,
+    avatarUrl: platformAccount.avatarUrl,
+  };
 
   return NextResponse.json({
     videos: videos.map((v) => ({
@@ -183,10 +104,12 @@ export async function GET(
       clipflowVideoId: v.id,
     })),
     nextPageToken: nextPageTokenValue,
-    account: {
-      displayName: platformAccount.displayName,
-      handle: platformAccount.handle,
-      avatarUrl: platformAccount.avatarUrl,
+    // Return both shapes so the frontend works for all platforms
+    channel: {
+      channelName: accountInfo.displayName,
+      channelHandle: accountInfo.handle,
+      thumbnailUrl: accountInfo.avatarUrl,
     },
+    account: accountInfo,
   });
 }

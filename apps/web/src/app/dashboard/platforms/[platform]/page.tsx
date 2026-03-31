@@ -141,7 +141,13 @@ export default function PlatformBrowsePage() {
       );
       if (!res.ok) throw new Error('Failed to load more videos');
       const data = await res.json();
-      setVideos((prev) => [...prev, ...data.videos]);
+      setVideos((prev) => {
+        const existingIds = new Set(prev.map((v) => v.videoId));
+        const newVideos = (data.videos as PlatformVideo[]).filter(
+          (v) => !existingIds.has(v.videoId)
+        );
+        return [...prev, ...newVideos];
+      });
       setNextPageToken(data.nextPageToken ?? null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load more videos');
