@@ -66,6 +66,31 @@ export async function GET(request: Request) {
     ? new Date(Date.now() + tokenData.expires_in * 1000)
     : null;
 
+  // Fetch TikTok user profile info
+  let displayName: string | null = null;
+  let handle: string | null = null;
+  let avatarUrl: string | null = null;
+
+  try {
+    const userInfoRes = await fetch(
+      'https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url,username',
+      {
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+        },
+      }
+    );
+    const userInfoData = await userInfoRes.json();
+    const user = userInfoData?.data?.user;
+    if (user) {
+      displayName = user.display_name || null;
+      handle = user.username ? `@${user.username}` : null;
+      avatarUrl = user.avatar_url || null;
+    }
+  } catch (err) {
+    console.error('Failed to fetch TikTok user info:', err);
+  }
+
   // Upsert the PlatformAccount (new canonical store for tokens)
   await prisma.platformAccount.upsert({
     where: {
@@ -79,6 +104,9 @@ export async function GET(request: Request) {
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token ?? null,
       tokenExpiresAt,
+      ...(displayName && { displayName }),
+      ...(handle && { handle }),
+      ...(avatarUrl && { avatarUrl }),
     },
     create: {
       userId,
@@ -87,6 +115,9 @@ export async function GET(request: Request) {
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token ?? null,
       tokenExpiresAt,
+      displayName,
+      handle,
+      avatarUrl,
     },
   });
 
