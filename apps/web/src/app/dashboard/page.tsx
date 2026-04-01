@@ -12,6 +12,8 @@ interface Video {
   title: string;
   thumbnailUrl?: string | null;
   status: 'PENDING' | 'DOWNLOADING' | 'PROCESSING' | 'READY' | 'FAILED';
+  platform?: string | null;
+  posts?: { platform: string }[];
   createdAt: string;
 }
 
