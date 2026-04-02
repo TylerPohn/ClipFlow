@@ -2,14 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth';
 import { prisma } from '@clipflow/db';
 import { S3_BUCKETS, VideoStatus } from '@clipflow/shared';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-
-const s3 = new S3Client({
-  region: process.env.AWS_REGION ?? 'us-east-1',
-});
-
-const PRESIGNED_URL_EXPIRES_IN = 3600; // 1 hour
+import { getSignedUrl } from '@clipflow/shared/src/s3';
 
 export async function GET(
   _request: Request,
@@ -38,20 +31,10 @@ export async function GET(
     );
   }
 
-  const filename = (video.title ?? 'video').replace(/[^a-zA-Z0-9_\-. ]/g, '') + '.mp4';
-
-  const command = new GetObjectCommand({
-    Bucket: S3_BUCKETS.PROCESSED,
-    Key: video.processedStorageKey,
-    ResponseContentDisposition: `attachment; filename="${filename}"`,
-  });
-
-  const url = await getSignedUrl(s3, command, {
-    expiresIn: PRESIGNED_URL_EXPIRES_IN,
-  });
+  const url = await getSignedUrl(S3_BUCKETS.PROCESSED, video.processedStorageKey);
 
   return NextResponse.json({
     url,
-    expiresIn: PRESIGNED_URL_EXPIRES_IN,
+    expiresIn: 3600,
   });
 }
