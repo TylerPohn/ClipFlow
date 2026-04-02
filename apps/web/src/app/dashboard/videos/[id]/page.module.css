@@ -66,6 +66,93 @@
   padding: 0.5rem 0;
 }
 
+/* Trim Timeline */
+.trimTimeline {
+  padding: 0.75rem 1rem 0.5rem;
+}
+
+.trimTimeLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  margin-bottom: 0.375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.trimTrack {
+  position: relative;
+  height: 32px;
+  background-color: var(--bg-tertiary, #1a1a2e);
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.trimDimmed {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.55);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.trimSelected {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background-color: rgba(99, 102, 241, 0.3);
+  border-top: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  pointer-events: none;
+}
+
+.trimPlayhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: #fff;
+  transform: translateX(-1px);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.trimHandle {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 14px;
+  transform: translateX(-7px);
+  cursor: ew-resize;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trimHandleBar {
+  width: 4px;
+  height: 20px;
+  background-color: var(--accent);
+  border-radius: 2px;
+  box-shadow: 0 0 4px rgba(99, 102, 241, 0.5);
+}
+
+.trimHandle:hover .trimHandleBar {
+  background-color: #818cf8;
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.7);
+}
+
+.trimDurationLabel {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  margin-top: 0.375rem;
+  text-align: center;
+}
+
 .timeInputRow {
   display: flex;
   gap: 0.375rem;

@@ -55,14 +55,131 @@ const PLATFORM_AUTH_ROUTE: Record<string, string> = {
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+  const s = Math.floor(seconds % 60);
+  const ms = Math.round((seconds % 1) * 100);
+  return `${m}:${String(s).padStart(2, '0')}:${String(ms).padStart(2, '0')}`;
 }
 
 function parseMMSS(value: string): number | null {
-  const match = value.match(/^(\d+):(\d{2})$/);
+  // Support MM:SS:mm (with milliseconds) or MM:SS
+  const match = value.match(/^(\d+):(\d{2})(?::(\d{2}))?$/);
   if (!match) return null;
-  return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+  const mins = parseInt(match[1], 10) * 60;
+  const secs = parseInt(match[2], 10);
+  const ms = match[3] ? parseInt(match[3], 10) / 100 : 0;
+  return mins + secs + ms;
+}
+
+function TrimTimeline({
+  duration,
+  startSeconds,
+  endSeconds,
+  currentTime,
+  onStartChange,
+  onEndChange,
+  onSeek,
+}: {
+  duration: number;
+  startSeconds: number;
+  endSeconds: number;
+  currentTime: number;
+  onStartChange: (s: number) => void;
+  onEndChange: (s: number) => void;
+  onSeek: (t: number) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef<'start' | 'end' | null>(null);
+
+  const pctStart = (startSeconds / duration) * 100;
+  const pctEnd = (endSeconds / duration) * 100;
+  const pctPlayhead = (currentTime / duration) * 100;
+
+  function getSecondsFromX(clientX: number): number {
+    const rect = trackRef.current!.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return Math.round(pct * duration * 100) / 100;
+  }
+
+  function handlePointerDown(handle: 'start' | 'end') {
+    return (e: React.PointerEvent) => {
+      e.preventDefault();
+      draggingRef.current = handle;
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    };
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    if (!draggingRef.current) return;
+    const sec = getSecondsFromX(e.clientX);
+    if (draggingRef.current === 'start') {
+      onStartChange(Math.min(sec, endSeconds - 1));
+    } else {
+      onEndChange(Math.max(sec, startSeconds + 1));
+    }
+  }
+
+  function handlePointerUp() {
+    draggingRef.current = null;
+  }
+
+  function handleTrackClick(e: React.MouseEvent) {
+    if (draggingRef.current) return;
+    const sec = getSecondsFromX(e.clientX);
+    onSeek(sec);
+  }
+
+  return (
+    <div className={styles.trimTimeline}>
+      <div className={styles.trimTimeLabels}>
+        <span>{formatDuration(startSeconds)}</span>
+        <span>{formatDuration(endSeconds)}</span>
+      </div>
+      <div
+        ref={trackRef}
+        className={styles.trimTrack}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onClick={handleTrackClick}
+      >
+        {/* Dimmed regions outside trim */}
+        <div className={styles.trimDimmed} style={{ left: 0, width: `${pctStart}%` }} />
+        <div className={styles.trimDimmed} style={{ left: `${pctEnd}%`, width: `${100 - pctEnd}%` }} />
+
+        {/* Selected region */}
+        <div
+          className={styles.trimSelected}
+          style={{ left: `${pctStart}%`, width: `${pctEnd - pctStart}%` }}
+        />
+
+        {/* Playhead */}
+        <div
+          className={styles.trimPlayhead}
+          style={{ left: `${pctPlayhead}%` }}
+        />
+
+        {/* Start handle */}
+        <div
+          className={styles.trimHandle}
+          style={{ left: `${pctStart}%` }}
+          onPointerDown={handlePointerDown('start')}
+        >
+          <div className={styles.trimHandleBar} />
+        </div>
+
+        {/* End handle */}
+        <div
+          className={styles.trimHandle}
+          style={{ left: `${pctEnd}%` }}
+          onPointerDown={handlePointerDown('end')}
+        >
+          <div className={styles.trimHandleBar} />
+        </div>
+      </div>
+      <div className={styles.trimDurationLabel}>
+        Selected: {formatDuration(endSeconds - startSeconds)}
+      </div>
+    </div>
+  );
 }
 
 function extractDefaults(video: Video): { caption: string; tags: string } {
@@ -97,7 +214,7 @@ export default function VideoDetailPage() {
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   // Process options
-  const [startTime, setStartTime] = useState('0:00');
+  const [startTime, setStartTime] = useState('0:00:00');
   const [endTime, setEndTime] = useState('');
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
   const [captionStyle, setCaptionStyle] = useState('white_outline');
@@ -106,6 +223,7 @@ export default function VideoDetailPage() {
   // Video playback
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [streamLoading, setStreamLoading] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Account status for all platforms
@@ -388,7 +506,26 @@ export default function VideoDetailPage() {
                   playsInline
                   className={styles.player}
                   poster={video.thumbnailUrl || undefined}
+                  onTimeUpdate={() => {
+                    if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
+                  }}
                 />
+                {video.duration != null && (
+                  <TrimTimeline
+                    duration={video.duration}
+                    startSeconds={parseMMSS(startTime) ?? 0}
+                    endSeconds={parseMMSS(endTime) ?? video.duration}
+                    currentTime={currentTime}
+                    onStartChange={(s) => setStartTime(formatDuration(s))}
+                    onEndChange={(s) => setEndTime(formatDuration(s))}
+                    onSeek={(t) => {
+                      if (videoRef.current) {
+                        videoRef.current.currentTime = t;
+                        setCurrentTime(t);
+                      }
+                    }}
+                  />
+                )}
               </div>
             ) : video.thumbnailUrl ? (
               <div className={styles.thumbnailWrapper}>
@@ -463,13 +600,13 @@ export default function VideoDetailPage() {
 
               <div className={styles.formGrid}>
                 <div className={styles.field}>
-                  <label>Start Time (MM:SS)</label>
+                  <label>Start Time (MM:SS:mm)</label>
                   <div className={styles.timeInputRow}>
                     <input
                       type="text"
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
-                      placeholder="0:00"
+                      placeholder="0:00:00"
                     />
                     {streamUrl && (
                       <button
@@ -488,13 +625,13 @@ export default function VideoDetailPage() {
                   </div>
                 </div>
                 <div className={styles.field}>
-                  <label>End Time (MM:SS)</label>
+                  <label>End Time (MM:SS:mm)</label>
                   <div className={styles.timeInputRow}>
                     <input
                       type="text"
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
-                      placeholder="1:00"
+                      placeholder="1:00:00"
                     />
                     {streamUrl && (
                       <button
