@@ -103,6 +103,11 @@ export default function VideoDetailPage() {
   const [captionStyle, setCaptionStyle] = useState('white_outline');
   const [processing, setProcessing] = useState(false);
 
+  // Video playback
+  const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [streamLoading, setStreamLoading] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
   // Account status for all platforms
   const [accounts, setAccounts] = useState<Record<string, AccountInfo>>({});
   const [accountsLoading, setAccountsLoading] = useState(true);
@@ -171,6 +176,19 @@ export default function VideoDetailPage() {
     }
     fetchAccounts();
   }, []);
+
+  // Fetch stream URL when video is ready
+  useEffect(() => {
+    if (video?.status !== 'READY') return;
+    setStreamLoading(true);
+    fetch(`/api/videos/${id}/stream`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.url) setStreamUrl(data.url);
+      })
+      .catch(() => {})
+      .finally(() => setStreamLoading(false));
+  }, [video?.status, id]);
 
   // Poll while processing/downloading
   useEffect(() => {
@@ -361,11 +379,25 @@ export default function VideoDetailPage() {
         {/* Left column: video info */}
         <div className={styles.main}>
           <div className={styles.card}>
-            {video.thumbnailUrl && (
+            {streamUrl ? (
+              <div className={styles.playerWrapper}>
+                <video
+                  ref={videoRef}
+                  src={streamUrl}
+                  controls
+                  playsInline
+                  className={styles.player}
+                  poster={video.thumbnailUrl || undefined}
+                />
+              </div>
+            ) : video.thumbnailUrl ? (
               <div className={styles.thumbnailWrapper}>
                 <img src={video.thumbnailUrl} alt={video.title} className={styles.thumbnail} />
+                {streamLoading && (
+                  <div className={styles.playerLoading}>Loading player...</div>
+                )}
               </div>
-            )}
+            ) : null}
             <div className={styles.videoInfo}>
               <div className={styles.titleRow}>
                 <h1 className={styles.title}>{video.title}</h1>
@@ -432,21 +464,53 @@ export default function VideoDetailPage() {
               <div className={styles.formGrid}>
                 <div className={styles.field}>
                   <label>Start Time (MM:SS)</label>
-                  <input
-                    type="text"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    placeholder="0:00"
-                  />
+                  <div className={styles.timeInputRow}>
+                    <input
+                      type="text"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      placeholder="0:00"
+                    />
+                    {streamUrl && (
+                      <button
+                        type="button"
+                        className={styles.setTimeBtn}
+                        title="Set from current playback position"
+                        onClick={() => {
+                          if (videoRef.current) {
+                            setStartTime(formatDuration(Math.floor(videoRef.current.currentTime)));
+                          }
+                        }}
+                      >
+                        Set
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className={styles.field}>
                   <label>End Time (MM:SS)</label>
-                  <input
-                    type="text"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    placeholder="1:00"
-                  />
+                  <div className={styles.timeInputRow}>
+                    <input
+                      type="text"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      placeholder="1:00"
+                    />
+                    {streamUrl && (
+                      <button
+                        type="button"
+                        className={styles.setTimeBtn}
+                        title="Set from current playback position"
+                        onClick={() => {
+                          if (videoRef.current) {
+                            setEndTime(formatDuration(Math.floor(videoRef.current.currentTime)));
+                          }
+                        }}
+                      >
+                        Set
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
