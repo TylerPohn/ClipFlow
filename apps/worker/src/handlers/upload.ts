@@ -142,9 +142,11 @@ async function uploadToTikTok(
 
   const privacyLevel = toTikTokPrivacy(visibility);
 
-  // Step 1: Initialize direct post via TikTok Content Posting API
+  // Step 1: Initialize upload via TikTok Creator Inbox API
+  // The direct post endpoint (/video/init/) requires a separate audit approval.
+  // The inbox endpoint sends the video to the creator's TikTok app for final posting.
   const initResponse = await fetch(
-    'https://open.tiktokapis.com/v2/post/publish/video/init/',
+    'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/',
     {
       method: 'POST',
       headers: {
@@ -152,14 +154,6 @@ async function uploadToTikTok(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        post_info: {
-          title: fullCaption.slice(0, 150),
-          privacy_level: privacyLevel,
-          disable_duet: false,
-          disable_comment: false,
-          disable_stitch: false,
-          video_cover_timestamp_ms: 0,
-        },
         source_info: {
           source: 'FILE_UPLOAD',
           video_size: videoBuffer.byteLength,
