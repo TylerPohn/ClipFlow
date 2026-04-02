@@ -8,6 +8,7 @@ interface PublishBody {
   platform?: string;
   caption?: string;
   hashtags?: string[];
+  visibility?: string;
   scheduledAt?: string;
 }
 
@@ -108,6 +109,7 @@ export async function POST(
         platform: body.platform,
         caption: body.caption,
         hashtags: body.hashtags,
+        visibility: body.visibility,
       },
     });
   }

@@ -71,12 +71,13 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
       const videoBuffer = await readFile(videoPath);
       const caption = job.data.options?.caption as string | undefined;
       const hashtags = (job.data.options?.hashtags as string[] | undefined) ?? [];
+      const visibility = (job.data.options?.visibility as string | undefined) ?? 'public';
       const fullCaption = [caption, ...hashtags.map((t) => `#${t}`)].filter(Boolean).join(' ');
 
       if (platform === 'X') {
         platformPostId = await uploadToX(account.id, videoBuffer, fullCaption, job);
       } else if (platform === 'TIKTOK') {
-        platformPostId = await uploadToTikTok(account, videoBuffer, fullCaption, job);
+        platformPostId = await uploadToTikTok(account, videoBuffer, fullCaption, visibility, job);
       } else {
         throw new Error(`Upload not implemented for platform: ${platform}`);
       }
@@ -117,13 +118,29 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
   }
 }
 
+// Map our visibility values to TikTok privacy levels
+function toTikTokPrivacy(visibility: string): string {
+  switch (visibility) {
+    case 'private':
+      return 'SELF_ONLY';
+    case 'unlisted':
+      return 'FOLLOWER_OF_CREATOR';
+    case 'public':
+    default:
+      return 'PUBLIC_TO_EVERYONE';
+  }
+}
+
 async function uploadToTikTok(
   account: { accessToken: string },
   videoBuffer: Buffer,
   fullCaption: string,
+  visibility: string,
   job: Job<VideoJob>
 ): Promise<string> {
   await job.updateProgress(50);
+
+  const privacyLevel = toTikTokPrivacy(visibility);
 
   // Step 1: Initialize direct post via TikTok Content Posting API
   const initResponse = await fetch(
@@ -137,7 +154,7 @@ async function uploadToTikTok(
       body: JSON.stringify({
         post_info: {
           title: fullCaption.slice(0, 150),
-          privacy_level: 'SELF_ONLY',
+          privacy_level: privacyLevel,
           disable_duet: false,
           disable_comment: false,
           disable_stitch: false,
