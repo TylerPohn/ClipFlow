@@ -295,9 +295,9 @@ export default function VideoDetailPage() {
     fetchAccounts();
   }, []);
 
-  // Fetch stream URL when video is ready
+  // Fetch stream URL when video is ready (re-fetches after reprocessing clears it)
   useEffect(() => {
-    if (video?.status !== 'READY') return;
+    if (video?.status !== 'READY' || streamUrl) return;
     setStreamLoading(true);
     fetch(`/api/videos/${id}/stream`)
       .then((res) => (res.ok ? res.json() : null))
@@ -306,7 +306,7 @@ export default function VideoDetailPage() {
       })
       .catch(() => {})
       .finally(() => setStreamLoading(false));
-  }, [video?.status, id]);
+  }, [video?.status, id, streamUrl]);
 
   // Poll while processing/downloading
   useEffect(() => {
@@ -330,6 +330,7 @@ export default function VideoDetailPage() {
   async function handleProcess() {
     setProcessing(true);
     setError('');
+    setStreamUrl(null);
     try {
       const body: Record<string, unknown> = {};
       const start = parseMMSS(startTime);
