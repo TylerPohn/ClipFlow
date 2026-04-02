@@ -20,6 +20,7 @@ export async function GET() {
       handle: true,
       avatarUrl: true,
       lastSyncedAt: true,
+      tokenStatus: true,
     },
   });
 
@@ -37,6 +38,7 @@ export async function GET() {
         handle: account.handle,
         avatarUrl: account.avatarUrl,
         lastSyncedAt: account.lastSyncedAt,
+        tokenStatus: account.tokenStatus,
       };
     } else {
       accounts[platform] = { connected: false };

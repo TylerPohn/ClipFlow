@@ -15,6 +15,7 @@ interface AccountInfo {
   handle: string | null;
   avatarUrl: string | null;
   lastSyncedAt: string | null;
+  tokenStatus: string | null;
 }
 
 interface PlatformVideo {
@@ -64,6 +65,7 @@ export default function PlatformBrowsePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [syncing, setSyncing] = useState(false);
+  const needsReconnect = account?.tokenStatus === 'expired' || account?.tokenStatus === 'scope_error';
   const [disconnecting, setDisconnecting] = useState(false);
   const [importingId, setImportingId] = useState<string | null>(null);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
@@ -93,6 +95,7 @@ export default function PlatformBrowsePage() {
             handle: acct.channelHandle || acct.handle || null,
             avatarUrl: acct.thumbnailUrl || acct.avatarUrl || null,
             lastSyncedAt: acct.lastSyncedAt || null,
+            tokenStatus: acct.tokenStatus || data.tokenStatus || null,
           });
         }
       } catch (err: unknown) {
@@ -122,6 +125,7 @@ export default function PlatformBrowsePage() {
             handle: acct.channelHandle || acct.handle || null,
             avatarUrl: acct.thumbnailUrl || acct.avatarUrl || null,
             lastSyncedAt: acct.lastSyncedAt || null,
+            tokenStatus: acct.tokenStatus || null,
           });
         }
       } catch (err: unknown) {
@@ -192,6 +196,7 @@ export default function PlatformBrowsePage() {
           handle: acct.channelHandle || acct.handle || null,
           avatarUrl: acct.thumbnailUrl || acct.avatarUrl || null,
           lastSyncedAt: acct.lastSyncedAt || null,
+          tokenStatus: acct.tokenStatus || null,
         });
       }
     } catch (err: unknown) {
@@ -323,13 +328,22 @@ export default function PlatformBrowsePage() {
           </div>
         </div>
         <div className={styles.headerActions}>
-          <button
-            className={styles.syncBtn}
-            onClick={handleSync}
-            disabled={syncing}
-          >
-            {syncing ? 'Syncing...' : 'Sync Now'}
-          </button>
+          {needsReconnect ? (
+            <a
+              href={`${PLATFORM_AUTH_PATHS[platform]}?returnTo=/dashboard/platforms/${rawPlatform}`}
+              className={styles.reconnectBtn}
+            >
+              Reconnect
+            </a>
+          ) : (
+            <button
+              className={styles.syncBtn}
+              onClick={handleSync}
+              disabled={syncing}
+            >
+              {syncing ? 'Syncing...' : 'Sync Now'}
+            </button>
+          )}
           <button
             className={styles.disconnectBtn}
             onClick={handleDisconnect}
@@ -339,6 +353,21 @@ export default function PlatformBrowsePage() {
           </button>
         </div>
       </div>
+
+      {needsReconnect && (
+        <div className={styles.reconnectBanner}>
+          <div className={styles.reconnectContent}>
+            <strong>Your {config.displayName} connection has expired.</strong>
+            <p>To fix this:</p>
+            <ol>
+              <li>Open TikTok app or go to tiktok.com</li>
+              <li>Go to <strong>Settings and Privacy</strong> &gt; <strong>Security and Permissions</strong> &gt; <strong>Manage permissions</strong></li>
+              <li>Find <strong>ClipFlow</strong> and tap <strong>Remove</strong></li>
+              <li>Come back here and click <strong>Reconnect</strong></li>
+            </ol>
+          </div>
+        </div>
+      )}
 
       {error && <div className={styles.error}>{error}</div>}
 

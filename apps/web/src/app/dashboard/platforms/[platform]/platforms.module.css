@@ -309,3 +309,51 @@
   margin-bottom: 0.5rem;
   color: var(--text-primary);
 }
+
+.reconnectBanner {
+  background-color: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.reconnectContent {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.reconnectContent strong {
+  color: rgb(234, 179, 8);
+}
+
+.reconnectContent p {
+  margin: 0.5rem 0 0.25rem;
+  color: var(--text-secondary);
+}
+
+.reconnectContent ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.reconnectBtn {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background-color: rgb(234, 179, 8);
+  color: #000;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.reconnectBtn:hover {
+  background-color: rgb(202, 138, 4);
+  color: #000;
+}

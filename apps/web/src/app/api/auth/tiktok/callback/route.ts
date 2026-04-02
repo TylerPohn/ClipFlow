@@ -104,6 +104,7 @@ export async function GET(request: Request) {
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token ?? null,
       tokenExpiresAt,
+      tokenStatus: 'valid',
       ...(displayName && { displayName }),
       ...(handle && { handle }),
       ...(avatarUrl && { avatarUrl }),

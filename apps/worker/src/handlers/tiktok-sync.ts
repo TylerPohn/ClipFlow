@@ -31,10 +31,34 @@ async function refreshAccessToken(platformAccountId: string): Promise<string> {
       }),
     });
 
-    if (!res.ok) throw new Error(`TikTok token refresh failed: ${res.status}`);
+    if (!res.ok) {
+      const body: any = await res.json().catch(() => null);
+      const errorCode = body?.error ?? body?.error_description ?? '';
+      if (
+        res.status === 400 ||
+        /invalid_grant|scope_not_authorized/i.test(String(errorCode))
+      ) {
+        await prisma.platformAccount.update({
+          where: { id: platformAccountId },
+          data: { tokenStatus: 'expired' },
+        });
+      }
+      throw new Error(`TikTok token refresh failed: ${res.status} ${JSON.stringify(body)}`);
+    }
     const data: any = await res.json();
 
     if (!data.access_token) {
+      const errorCode = data.error ?? data.error_description ?? '';
+      if (/invalid_grant|scope_not_authorized/i.test(String(errorCode))) {
+        await prisma.platformAccount.update({
+          where: { id: platformAccountId },
+          data: {
+            tokenStatus: /scope_not_authorized/i.test(String(errorCode))
+              ? 'scope_error'
+              : 'expired',
+          },
+        });
+      }
       throw new Error(`TikTok token refresh returned no access_token: ${JSON.stringify(data)}`);
     }
 

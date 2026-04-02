@@ -90,6 +90,11 @@
   color: var(--text-muted);
 }
 
+.statusExpired {
+  background-color: rgba(234, 179, 8, 0.15);
+  color: rgb(234, 179, 8);
+}
+
 .accountSection {
   padding: 0 1.5rem;
   margin-bottom: 0.75rem;
@@ -225,6 +230,25 @@
 .connectBtn:hover {
   background-color: var(--accent-hover);
   color: white;
+}
+
+.reconnectBtn {
+  display: block;
+  text-align: center;
+  padding: 0.5rem 1.25rem;
+  background-color: rgb(234, 179, 8);
+  color: #000;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+
+.reconnectBtn:hover {
+  background-color: rgb(202, 138, 4);
+  color: #000;
 }
 
 .disconnectBtn {

@@ -13,6 +13,7 @@ interface AccountStatus {
   handle?: string | null;
   avatarUrl?: string | null;
   lastSyncedAt?: string | null;
+  tokenStatus?: string | null;
 }
 
 type PlatformKey = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'X';
@@ -146,6 +147,7 @@ export default function PlatformsIndexPage() {
           const account = accounts[platform];
           const config = PLATFORM_CONFIG[platform];
           const isConnected = account?.connected ?? false;
+          const needsReconnect = isConnected && account?.tokenStatus && account.tokenStatus !== 'valid';
           const capabilities = getCapabilities(platform);
           const color = PLATFORM_COLORS[platform];
 
@@ -159,9 +161,15 @@ export default function PlatformsIndexPage() {
                   <div className={styles.platformInfo}>
                     <span className={styles.platformName}>{config?.displayName ?? platform}</span>
                     <span
-                      className={`${styles.statusBadge} ${isConnected ? styles.statusConnected : styles.statusDisconnected}`}
+                      className={`${styles.statusBadge} ${
+                        needsReconnect
+                          ? styles.statusExpired
+                          : isConnected
+                            ? styles.statusConnected
+                            : styles.statusDisconnected
+                      }`}
                     >
-                      {isConnected ? 'Connected' : 'Not connected'}
+                      {needsReconnect ? 'Reconnect needed' : isConnected ? 'Connected' : 'Not connected'}
                     </span>
                   </div>
                 </div>
@@ -213,12 +221,21 @@ export default function PlatformsIndexPage() {
               <div className={styles.actions}>
                 {isConnected ? (
                   <>
-                    <Link
-                      href={`/dashboard/platforms/${platform.toLowerCase()}`}
-                      className={styles.browseBtn}
-                    >
-                      Browse {config?.displayName}
-                    </Link>
+                    {needsReconnect ? (
+                      <a
+                        href={`/api/auth/${platform.toLowerCase()}/link?returnTo=/dashboard/platforms`}
+                        className={styles.reconnectBtn}
+                      >
+                        Reconnect {config?.displayName}
+                      </a>
+                    ) : (
+                      <Link
+                        href={`/dashboard/platforms/${platform.toLowerCase()}`}
+                        className={styles.browseBtn}
+                      >
+                        Browse {config?.displayName}
+                      </Link>
+                    )}
                     <button
                       className={styles.disconnectBtn}
                       onClick={() => handleDisconnect(platform)}

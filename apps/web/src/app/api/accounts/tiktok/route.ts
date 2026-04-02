@@ -12,7 +12,7 @@ export async function GET() {
 
   const account = await prisma.platformAccount.findFirst({
     where: { userId, platform: 'TIKTOK' },
-    select: { id: true, platformUserId: true, displayName: true, handle: true },
+    select: { id: true, platformUserId: true, displayName: true, handle: true, tokenStatus: true },
   });
 
   return NextResponse.json({
@@ -20,5 +20,6 @@ export async function GET() {
     accountId: account?.platformUserId ?? null,
     displayName: account?.displayName ?? null,
     handle: account?.handle ?? null,
+    tokenStatus: account?.tokenStatus ?? null,
   });
 }
