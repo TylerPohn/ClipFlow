@@ -137,7 +137,8 @@ export async function GET(request: Request) {
         ? Math.floor(Date.now() / 1000) + tokenData.expires_in
         : null,
       token_type: tokenData.token_type ?? 'Bearer',
-      scope: tokenData.scope ?? 'user.info.basic,video.publish,video.upload,video.list',
+      // TODO: Add video.list scope once approved in TikTok developer portal
+      scope: tokenData.scope ?? 'user.info.basic,video.publish,video.upload',
     },
     create: {
       userId,
@@ -150,7 +151,8 @@ export async function GET(request: Request) {
         ? Math.floor(Date.now() / 1000) + tokenData.expires_in
         : null,
       token_type: tokenData.token_type ?? 'Bearer',
-      scope: tokenData.scope ?? 'user.info.basic,video.publish,video.upload,video.list',
+      // TODO: Add video.list scope once approved in TikTok developer portal
+      scope: tokenData.scope ?? 'user.info.basic,video.publish,video.upload',
     },
   });
 
