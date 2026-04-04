@@ -2,7 +2,7 @@ import Link from 'next/link';
 import styles from './page.module.css';
 
 export const metadata = {
-  title: 'Terms of Service - ClipFlow',
+  title: 'Terms of Service - Cliptopus',
 };
 
 export default function TermsOfService() {
@@ -13,14 +13,14 @@ export default function TermsOfService() {
 
       <p>
         Please read these Terms of Service (&ldquo;Terms&rdquo;) carefully before using
-        ClipFlow Studio (&ldquo;Service&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;, or
+        Cliptopus (&ldquo;Service&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;, or
         &ldquo;our&rdquo;). By accessing or using the Service, you agree to be bound by
         these Terms. If you do not agree, do not use the Service.
       </p>
 
       <h2>1. Acceptance of Terms</h2>
       <p>
-        By creating an account or using ClipFlow Studio, you acknowledge that you have
+        By creating an account or using Cliptopus, you acknowledge that you have
         read, understood, and agree to be bound by these Terms, as well as our{' '}
         <Link href="/privacy">Privacy Policy</Link>. We may update these Terms from time
         to time, and your continued use of the Service constitutes acceptance of any
@@ -28,7 +28,7 @@ export default function TermsOfService() {
       </p>
 
       <h2>2. Description of Service</h2>
-      <p>ClipFlow Studio is a video repurposing platform that allows users to:</p>
+      <p>Cliptopus is a video repurposing platform that allows users to:</p>
       <ul>
         <li>Import videos from YouTube via URL</li>
         <li>Convert horizontal video to vertical format suitable for short-form platforms</li>
@@ -48,9 +48,9 @@ export default function TermsOfService() {
 
       <h3>3.2 TikTok Authorization</h3>
       <p>
-        To publish videos through ClipFlow Studio, you must authorize the Service to
+        To publish videos through Cliptopus, you must authorize the Service to
         access your TikTok account via TikTok OAuth. You may revoke this authorization
-        at any time through your TikTok account settings or through the ClipFlow Studio
+        at any time through your TikTok account settings or through the Cliptopus
         dashboard.
       </p>
 
@@ -66,13 +66,13 @@ export default function TermsOfService() {
       <h3>4.1 Your Content</h3>
       <p>
         You retain all ownership rights to content you submit, upload, or process through
-        the Service (&ldquo;User Content&rdquo;). ClipFlow Studio does not claim
+        the Service (&ldquo;User Content&rdquo;). Cliptopus does not claim
         ownership of your content.
       </p>
 
-      <h3>4.2 License to ClipFlow Studio</h3>
+      <h3>4.2 License to Cliptopus</h3>
       <p>
-        By using the Service, you grant ClipFlow Studio a limited, non-exclusive,
+        By using the Service, you grant Cliptopus a limited, non-exclusive,
         royalty-free license to process, transform, store, and transmit your content
         solely for the purpose of providing and operating the Service. This license
         exists only for as long as your content remains on our platform and terminates
@@ -103,16 +103,16 @@ export default function TermsOfService() {
 
       <h2>6. Third-Party Services</h2>
       <p>
-        ClipFlow Studio integrates with third-party services to provide its
+        Cliptopus integrates with third-party services to provide its
         functionality. By using the Service, you acknowledge and agree that:
       </p>
       <ul>
         <li><strong>YouTube</strong>: You must comply with the YouTube Terms of Service when using content from YouTube. You are solely responsible for ensuring you have the right to repurpose any YouTube video you process through the Service.</li>
-        <li><strong>TikTok</strong>: You must comply with the TikTok Terms of Service when publishing content to TikTok. ClipFlow Studio acts on your behalf when posting to your TikTok account.</li>
+        <li><strong>TikTok</strong>: You must comply with the TikTok Terms of Service when publishing content to TikTok. Cliptopus acts on your behalf when posting to your TikTok account.</li>
         <li><strong>OpenAI</strong>: Audio from your videos is sent to OpenAI&apos;s Whisper API for transcription. This processing is subject to OpenAI&apos;s Usage Policies.</li>
       </ul>
       <p>
-        ClipFlow Studio is not responsible for the availability, accuracy, or practices
+        Cliptopus is not responsible for the availability, accuracy, or practices
         of these third-party services.
       </p>
 
@@ -121,7 +121,7 @@ export default function TermsOfService() {
       <h3>7.1 Free Tier</h3>
       <p>
         The free tier includes up to 3 video exports per month. Exported videos on the
-        free tier include a ClipFlow Studio watermark.
+        free tier include a Cliptopus watermark.
       </p>
 
       <h3>7.2 Paid Tiers</h3>
@@ -169,7 +169,7 @@ export default function TermsOfService() {
 
       <h2>10. Limitation of Liability</h2>
       <p>
-        TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, CLIPFLOW STUDIO SHALL NOT BE
+        TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, CLIPTOPUS SHALL NOT BE
         LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE
         DAMAGES, ARISING OUT OF OR RELATED TO YOUR USE OF OR INABILITY TO USE THE
         SERVICE.
@@ -182,7 +182,7 @@ export default function TermsOfService() {
 
       <h2>11. Indemnification</h2>
       <p>
-        You agree to indemnify, defend, and hold harmless ClipFlow Studio and its
+        You agree to indemnify, defend, and hold harmless Cliptopus and its
         operators from any claims, damages, losses, liabilities, and expenses arising out
         of or related to your use of the Service, your violation of these Terms, or your
         violation of any rights of a third party.
@@ -219,7 +219,7 @@ export default function TermsOfService() {
       <p>
         If you have any questions about these Terms of Service, please contact us at:
       </p>
-      <p><strong>Email</strong>: legal@clipflow.studio</p>
+      <p><strong>Email</strong>: legal@cliptopus.com</p>
     </div>
   );
 }

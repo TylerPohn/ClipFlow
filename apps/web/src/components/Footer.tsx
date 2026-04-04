@@ -6,7 +6,7 @@ export default function Footer() {
     <footer className={styles.footer}>
       <div className={styles.inner}>
         <span className={styles.copyright}>
-          &copy; {new Date().getFullYear()} ClipFlow Studio
+          &copy; {new Date().getFullYear()} Cliptopus
         </span>
         <div className={styles.links}>
           <Link href="/privacy" className={styles.link}>

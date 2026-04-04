@@ -38,7 +38,7 @@ function LoginForm() {
   return (
     <div className={styles.container}>
       <div className={styles.card}>
-        <h1 className={styles.title}>Sign in to ClipFlow</h1>
+        <h1 className={styles.title}>Sign in to Cliptopus</h1>
         <p className={styles.subtitle}>
           Sign in with your email or GitHub account.
         </p>

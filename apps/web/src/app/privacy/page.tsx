@@ -1,7 +1,7 @@
 import styles from './page.module.css';
 
 export const metadata = {
-  title: 'Privacy Policy - ClipFlow',
+  title: 'Privacy Policy - Cliptopus',
 };
 
 export default function PrivacyPolicy() {
@@ -11,7 +11,7 @@ export default function PrivacyPolicy() {
       <p className={styles.updated}>Last updated: March 2026</p>
 
       <p>
-        This Privacy Policy describes how ClipFlow Studio (&ldquo;Service&rdquo;,
+        This Privacy Policy describes how Cliptopus (&ldquo;Service&rdquo;,
         &ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;) collects, uses, and
         protects your information when you use our video repurposing platform. By using
         the Service, you agree to the collection and use of information in accordance
@@ -84,7 +84,7 @@ export default function PrivacyPolicy() {
 
       <h3>3.1 TikTok</h3>
       <p>
-        When you publish a video through ClipFlow Studio, the processed video file and
+        When you publish a video through Cliptopus, the processed video file and
         any associated metadata (title, description, captions) are uploaded to TikTok
         via their API. This transfer is initiated by you and governed by TikTok&apos;s
         Privacy Policy.
@@ -116,7 +116,7 @@ export default function PrivacyPolicy() {
         <li><strong>Video files</strong>: Stored in cloud storage until you delete them through the Service or until your account is terminated.</li>
         <li><strong>Transcripts and metadata</strong>: Retained as long as the associated video exists in your account.</li>
         <li><strong>Account data</strong>: Retained while your account is active. If you delete your account, we will delete your personal data within 30 days, except where retention is required by law.</li>
-        <li><strong>TikTok access tokens</strong>: Stored while your TikTok account is connected. Tokens are deleted when you disconnect your TikTok account or delete your ClipFlow Studio account.</li>
+        <li><strong>TikTok access tokens</strong>: Stored while your TikTok account is connected. Tokens are deleted when you disconnect your TikTok account or delete your Cliptopus account.</li>
         <li><strong>Usage logs</strong>: Retained for up to 12 months for security and service improvement purposes, then deleted or anonymized.</li>
       </ul>
 
@@ -147,7 +147,7 @@ export default function PrivacyPolicy() {
 
       <h2>7. Children&apos;s Privacy</h2>
       <p>
-        ClipFlow Studio is not intended for use by anyone under the age of 13. We do not
+        Cliptopus is not intended for use by anyone under the age of 13. We do not
         knowingly collect personal information from children under 13. If we become aware
         that we have collected data from a child under 13, we will take steps to delete
         that information promptly.
@@ -174,7 +174,7 @@ export default function PrivacyPolicy() {
         If you have any questions or concerns about this Privacy Policy or our data
         practices, please contact us at:
       </p>
-      <p><strong>Email</strong>: privacy@clipflow.studio</p>
+      <p><strong>Email</strong>: privacy@cliptopus.com</p>
     </div>
   );
 }

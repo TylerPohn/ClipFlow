@@ -123,7 +123,7 @@
 
 .platformOptionSelected {
   border-color: var(--accent);
-  background-color: rgba(99, 102, 241, 0.1);
+  background-color: rgba(200, 90, 42, 0.1);
 }
 
 .platformOptionName {

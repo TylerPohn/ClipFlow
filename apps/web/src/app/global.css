@@ -1,19 +1,37 @@
-:root {
-  --bg-primary: #0f1117;
-  --bg-secondary: #1a1d27;
-  --bg-tertiary: #242836;
-  --text-primary: #e4e6eb;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
+:root, [data-theme="light"] {
+  --accent: #C85A2A;
+  --accent-hover: #D9723F;
+  --accent-dark: #6B2E1A;
+  --bg-primary: #F5EAE0;
+  --bg-secondary: #FEFCFA;
+  --bg-tertiary: #F0E0D0;
+  --text-primary: #2D1A0E;
+  --text-secondary: #7A6558;
+  --text-muted: #9A8A7E;
   --success: #22c55e;
   --warning: #eab308;
   --error: #ef4444;
   --info: #3b82f6;
-  --border: #2d3141;
+  --border: #E8D5C4;
   --radius: 8px;
   --radius-lg: 12px;
+}
+
+[data-theme="dark"] {
+  --accent: #D9723F;
+  --accent-hover: #E8884F;
+  --accent-dark: #C85A2A;
+  --bg-primary: #1A1410;
+  --bg-secondary: #262019;
+  --bg-tertiary: #332B22;
+  --text-primary: #F0E6DC;
+  --text-secondary: #A89484;
+  --text-muted: #7A6B5E;
+  --success: #22c55e;
+  --warning: #eab308;
+  --error: #ef4444;
+  --info: #3b82f6;
+  --border: #3D3228;
 }
 
 * {
@@ -94,7 +112,7 @@ button:disabled {
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: #dc2626;
+  background-color: #b91c1c;
 }
 
 input, select, textarea {

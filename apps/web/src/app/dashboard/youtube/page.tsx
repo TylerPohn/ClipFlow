@@ -203,7 +203,7 @@ export default function YouTubeBrowsePage() {
             </svg>
           </div>
           <h2>Connect Your YouTube Channel</h2>
-          <p>Link your YouTube account to browse and import your videos into ClipFlow.</p>
+          <p>Link your YouTube account to browse and import your videos into Cliptopus.</p>
           <a
             href="/api/auth/youtube/link?returnTo=/dashboard/youtube"
             className={styles.importBtn}

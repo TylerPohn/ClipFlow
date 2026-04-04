@@ -54,7 +54,7 @@ export default function SignupPage() {
       <div className={styles.card}>
         <h1 className={styles.title}>Create your account</h1>
         <p className={styles.subtitle}>
-          Sign up to start using ClipFlow.
+          Sign up to start using Cliptopus.
         </p>
 
         <form onSubmit={handleSubmit} className={styles.form}>

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import styles from './NavBar.module.css';
+import ThemeToggle from './ThemeToggle';
 
 export default function NavBar() {
   const { data: session, status } = useSession();
@@ -24,7 +25,7 @@ export default function NavBar() {
     <nav className={styles.nav}>
       <div className={styles.inner}>
         <Link href="/" className={styles.logo}>
-          ClipFlow
+          Cliptopus
         </Link>
         <div className={styles.links}>
           {session && (
@@ -78,6 +79,7 @@ export default function NavBar() {
               </Link>
             </>
           )}
+          <ThemeToggle />
           {status === 'loading' ? null : session ? (
             <button className="btn-secondary" onClick={() => signOut()}>
               Sign Out

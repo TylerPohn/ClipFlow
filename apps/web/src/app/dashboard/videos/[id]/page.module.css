@@ -50,7 +50,7 @@
   border-radius: var(--radius);
   overflow: hidden;
   margin-bottom: 1rem;
-  background-color: #000;
+  background-color: var(--bg-primary);
 }
 
 .player {
@@ -103,7 +103,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  background-color: rgba(99, 102, 241, 0.3);
+  background-color: rgba(200, 90, 42, 0.3);
   border-top: 2px solid var(--accent);
   border-bottom: 2px solid var(--accent);
   pointer-events: none;
@@ -114,7 +114,7 @@
   top: 0;
   bottom: 0;
   width: 2px;
-  background-color: #fff;
+  background-color: var(--text-primary);
   transform: translateX(-1px);
   pointer-events: none;
   z-index: 2;
@@ -138,12 +138,12 @@
   height: 20px;
   background-color: var(--accent);
   border-radius: 2px;
-  box-shadow: 0 0 4px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 4px rgba(200, 90, 42, 0.5);
 }
 
 .trimHandle:hover .trimHandleBar {
-  background-color: #818cf8;
-  box-shadow: 0 0 8px rgba(99, 102, 241, 0.7);
+  background-color: var(--accent-hover);
+  box-shadow: 0 0 8px rgba(200, 90, 42, 0.7);
 }
 
 .trimDurationLabel {

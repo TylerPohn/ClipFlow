@@ -20,7 +20,7 @@
 .connectCard {
   max-width: 480px;
   margin: 4rem auto;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 3rem;
   text-align: center;
@@ -77,7 +77,7 @@
 
 .syncBtn {
   padding: 0.5rem 1rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: transparent;
   font-size: 0.875rem;
@@ -87,7 +87,7 @@
 }
 
 .syncBtn:hover {
-  background-color: #f3f4f6;
+  background-color: var(--bg-tertiary);
 }
 
 .syncBtn:disabled {
@@ -102,10 +102,10 @@
 }
 
 .videoCard {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  background: white;
+  background: var(--bg-secondary);
   transition: box-shadow 0.15s ease;
 }
 
@@ -197,8 +197,8 @@
   width: 100%;
   padding: 0.5rem 1rem;
   margin-top: 0.5rem;
-  background-color: #ecfdf5;
-  color: #059669;
+  background-color: rgba(34, 197, 94, 0.1);
+  color: var(--success);
   border: none;
   border-radius: var(--radius);
   font-size: 0.875rem;
@@ -210,8 +210,8 @@
 }
 
 .importedBadge:hover {
-  background-color: #d1fae5;
-  color: #059669;
+  background-color: rgba(34, 197, 94, 0.15);
+  color: var(--success);
 }
 
 .loading {

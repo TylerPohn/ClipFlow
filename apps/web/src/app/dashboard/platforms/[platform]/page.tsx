@@ -283,7 +283,7 @@ export default function PlatformBrowsePage() {
           </div>
           <h2>Connect Your {config.displayName} Account</h2>
           <p>
-            Link your {config.displayName} account to browse and import your videos into ClipFlow.
+            Link your {config.displayName} account to browse and import your videos into Cliptopus.
           </p>
           <a
             href={`${PLATFORM_AUTH_PATHS[platform]}?returnTo=/dashboard/platforms/${rawPlatform}`}
@@ -362,7 +362,7 @@ export default function PlatformBrowsePage() {
             <ol>
               <li>Open TikTok app or go to tiktok.com</li>
               <li>Go to <strong>Settings and Privacy</strong> &gt; <strong>Security and Permissions</strong> &gt; <strong>Manage permissions</strong></li>
-              <li>Find <strong>ClipFlow</strong> and tap <strong>Remove</strong></li>
+              <li>Find <strong>Cliptopus</strong> and tap <strong>Remove</strong></li>
               <li>Come back here and click <strong>Reconnect</strong></li>
             </ol>
           </div>
