@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import styles from './NavBar.module.css';
@@ -25,6 +26,7 @@ export default function NavBar() {
     <nav className={styles.nav}>
       <div className={styles.inner}>
         <Link href="/" className={styles.logo}>
+          <Image src="/cliptopus-logo.jpg" alt="Cliptopus" width={32} height={32} className={styles.logoImg} />
           Cliptopus
         </Link>
         <div className={styles.links}>

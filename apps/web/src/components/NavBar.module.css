@@ -17,11 +17,18 @@
 }
 
 .logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-primary);
   text-decoration: none;
   letter-spacing: -0.02em;
+}
+
+.logoImg {
+  border-radius: 6px;
 }
 
 .logo:hover {
