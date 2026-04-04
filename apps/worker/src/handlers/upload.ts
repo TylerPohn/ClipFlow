@@ -11,6 +11,7 @@ import {
 } from '@clipflow/shared';
 import { prisma } from '@clipflow/db';
 import { uploadToX } from '../uploaders/x';
+import { ensureFreshTikTokToken } from '../lib/tiktok-token';
 
 export async function handleUpload(job: Job<VideoJob>): Promise<void> {
   const { videoId } = job.data;
@@ -77,7 +78,8 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
       if (platform === 'X') {
         platformPostId = await uploadToX(account.id, videoBuffer, fullCaption, job);
       } else if (platform === 'TIKTOK') {
-        platformPostId = await uploadToTikTok(account, videoBuffer, fullCaption, visibility, job);
+        const freshToken = await ensureFreshTikTokToken(account.id);
+        platformPostId = await uploadToTikTok({ accessToken: freshToken }, videoBuffer, fullCaption, visibility, job);
       } else {
         throw new Error(`Upload not implemented for platform: ${platform}`);
       }
