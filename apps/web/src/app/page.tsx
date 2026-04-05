@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import styles from './page.module.css';
 
@@ -5,11 +6,19 @@ export default function Home() {
   return (
     <div className={styles.container}>
       <section className={styles.hero}>
+        <Image
+          src="/cliptopus-logo.jpg"
+          alt="Cliptopus"
+          width={160}
+          height={160}
+          className={styles.heroLogo}
+          priority
+        />
         <h1 className={styles.heading}>
-          Turn YouTube videos into TikTok clips
+          Repurpose your videos across every platform
         </h1>
         <p className={styles.subheading}>
-          Import, trim, add captions, and publish -- all in one workflow.
+          Import from YouTube, TikTok, or Instagram — trim, caption, and publish everywhere in one workflow.
         </p>
         <Link href="/dashboard" className={styles.cta}>
           Get Started

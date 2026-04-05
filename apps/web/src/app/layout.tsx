@@ -5,7 +5,7 @@ import Footer from '@/components/Footer';
 
 export const metadata = {
   title: 'Cliptopus',
-  description: 'Turn YouTube videos into TikTok clips',
+  description: 'Repurpose your videos across every platform',
 };
 
 export default function RootLayout({

@@ -9,6 +9,11 @@
   padding: 5rem 0 4rem;
 }
 
+.heroLogo {
+  border-radius: 24px;
+  margin-bottom: 1.5rem;
+}
+
 .heading {
   font-size: 3rem;
   font-weight: 700;
