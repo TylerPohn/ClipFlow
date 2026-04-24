@@ -26,7 +26,7 @@ interface Post {
 
 interface Video {
   id: string;
-  title: string;
+  title: string | null;
   thumbnailUrl?: string | null;
   status: 'PENDING' | 'DOWNLOADING' | 'PROCESSING' | 'READY' | 'FAILED';
   platform?: string | null;
@@ -47,12 +47,13 @@ function getPlatforms(video: Video): string[] {
 
 export default function VideoCard({ video }: { video: Video }) {
   const platforms = getPlatforms(video);
+  const title = video.title ?? '';
 
   return (
     <Link href={`/dashboard/videos/${video.id}`} className={styles.card}>
       <div className={styles.thumbnail}>
         {video.thumbnailUrl ? (
-          <img src={video.thumbnailUrl} alt={video.title} />
+          <img src={video.thumbnailUrl} alt={title} />
         ) : (
           <div className={styles.placeholder}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -77,7 +78,7 @@ export default function VideoCard({ video }: { video: Video }) {
         )}
       </div>
       <div className={styles.info}>
-        <h3 className={styles.title}>{video.title}</h3>
+        <h3 className={styles.title}>{title}</h3>
         <div className={styles.meta}>
           <StatusBadge status={video.status} />
           <span className={styles.date}>
