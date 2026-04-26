@@ -21,7 +21,8 @@ export async function GET(request: Request) {
 
   const params = new URLSearchParams({
     client_key: clientKey,
-    scope: 'user.info.basic,user.info.profile,user.info.stats,video.publish,video.upload,video.list',
+    // TODO: Re-add 'user.info.profile,user.info.stats,video.list' once approved in TikTok developer portal
+    scope: 'user.info.basic,video.publish,video.upload',
     response_type: 'code',
     redirect_uri: redirectUri,
     state,
