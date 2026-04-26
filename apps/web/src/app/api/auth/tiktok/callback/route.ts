@@ -109,7 +109,7 @@ export async function GET(request: Request) {
   // TODO: REMOVE DUMMY VALUE — fallback for pre-approval demo only
   const bio = user?.bio_description ?? 'Multi-platform creator. Cliptopus user.';
   // TODO: REMOVE DUMMY VALUE
-  const isVerified = user?.is_verified ?? false;
+  const isVerified = user?.is_verified ?? true;
   // TODO: REMOVE DUMMY VALUE
   const profileWebLink =
     user?.profile_web_link ?? `https://www.tiktok.com/@${username ?? 'demo_creator'}`;
