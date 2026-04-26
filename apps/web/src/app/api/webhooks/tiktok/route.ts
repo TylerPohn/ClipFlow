@@ -62,11 +62,9 @@ export async function POST(request: Request) {
           type: JobType.PLATFORM_SYNC,
           videoId: '',
           userId: platformAccount.userId,
-          options: {
-            platformAccountId: platformAccount.id,
-            specificVideoId: data.video_id as string | undefined,
-          },
-        });
+          platformAccountId: platformAccount.id,
+          specificVideoId: data.video_id as string | undefined,
+        } as any);
       }
     }
   }

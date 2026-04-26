@@ -10,6 +10,7 @@ import {
   downloadFile,
 } from '@clipflow/shared';
 import { prisma } from '@clipflow/db';
+import { directPostToTikTok, type DirectPostOptions } from '@clipflow/video-processing';
 import { uploadToX } from '../uploaders/x';
 import { ensureFreshTikTokToken } from '../lib/tiktok-token';
 
@@ -73,13 +74,28 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
       const caption = job.data.options?.caption as string | undefined;
       const hashtags = (job.data.options?.hashtags as string[] | undefined) ?? [];
       const visibility = (job.data.options?.visibility as string | undefined) ?? 'public';
+      const postMode = (job.data.options?.postMode as string | undefined) ?? 'inbox';
       const fullCaption = [caption, ...hashtags.map((t) => `#${t}`)].filter(Boolean).join(' ');
 
       if (platform === 'X') {
         platformPostId = await uploadToX(account.id, videoBuffer, fullCaption, job);
       } else if (platform === 'TIKTOK') {
         const freshToken = await ensureFreshTikTokToken(account.id);
-        platformPostId = await uploadToTikTok({ accessToken: freshToken }, videoBuffer, fullCaption, visibility, job);
+        if (postMode === 'direct') {
+          const directOptions: DirectPostOptions = {
+            title: fullCaption,
+            privacyLevel: toTikTokDirectPrivacy(visibility),
+            disableComment: job.data.options?.disableComment === true,
+            disableDuet: job.data.options?.disableDuet === true,
+            disableStitch: job.data.options?.disableStitch === true,
+          };
+          await job.updateProgress(50);
+          const result = await directPostToTikTok(freshToken, videoPath, directOptions);
+          await job.updateProgress(85);
+          platformPostId = result.publishId;
+        } else {
+          platformPostId = await uploadToTikTok({ accessToken: freshToken }, videoBuffer, fullCaption, visibility, job);
+        }
       } else {
         throw new Error(`Upload not implemented for platform: ${platform}`);
       }
@@ -127,6 +143,21 @@ function toTikTokPrivacy(visibility: string): string {
       return 'SELF_ONLY';
     case 'unlisted':
       return 'FOLLOWER_OF_CREATOR';
+    case 'public':
+    default:
+      return 'PUBLIC_TO_EVERYONE';
+  }
+}
+
+// Direct Post supports a different set of privacy values than the inbox flow.
+function toTikTokDirectPrivacy(
+  visibility: string
+): DirectPostOptions['privacyLevel'] {
+  switch (visibility) {
+    case 'private':
+      return 'SELF_ONLY';
+    case 'unlisted':
+      return 'MUTUAL_FOLLOW_FRIENDS';
     case 'public':
     default:
       return 'PUBLIC_TO_EVERYONE';

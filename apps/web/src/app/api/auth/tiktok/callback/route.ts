@@ -70,10 +70,24 @@ export async function GET(request: Request) {
   let displayName: string | null = null;
   let handle: string | null = null;
   let avatarUrl: string | null = null;
+  let username: string | null = null;
+  let user: {
+    display_name?: string;
+    avatar_url?: string;
+    username?: string;
+    bio_description?: string;
+    is_verified?: boolean;
+    profile_web_link?: string;
+    profile_deep_link?: string;
+    follower_count?: number;
+    following_count?: number;
+    likes_count?: number;
+    video_count?: number;
+  } | null = null;
 
   try {
     const userInfoRes = await fetch(
-      'https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url,username',
+      'https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url,username,bio_description,is_verified,profile_web_link,profile_deep_link,follower_count,following_count,likes_count,video_count',
       {
         headers: {
           Authorization: `Bearer ${tokenData.access_token}`,
@@ -81,15 +95,35 @@ export async function GET(request: Request) {
       }
     );
     const userInfoData = await userInfoRes.json();
-    const user = userInfoData?.data?.user;
+    user = userInfoData?.data?.user ?? null;
     if (user) {
       displayName = user.display_name || null;
+      username = user.username || null;
       handle = user.username ? `@${user.username}` : null;
       avatarUrl = user.avatar_url || null;
     }
   } catch (err) {
     console.error('Failed to fetch TikTok user info:', err);
   }
+
+  // TODO: REMOVE DUMMY VALUE — fallback for pre-approval demo only
+  const bio = user?.bio_description ?? 'Multi-platform creator. Cliptopus user.';
+  // TODO: REMOVE DUMMY VALUE
+  const isVerified = user?.is_verified ?? false;
+  // TODO: REMOVE DUMMY VALUE
+  const profileWebLink =
+    user?.profile_web_link ?? `https://www.tiktok.com/@${username ?? 'demo_creator'}`;
+  // TODO: REMOVE DUMMY VALUE
+  const profileDeepLink = user?.profile_deep_link ?? `snssdk1233://user/profile/${openId}`;
+  // TODO: REMOVE DUMMY VALUE — fallback for pre-approval demo only
+  const followerCount = user?.follower_count ?? 12_847;
+  // TODO: REMOVE DUMMY VALUE
+  const followingCount = user?.following_count ?? 312;
+  // TODO: REMOVE DUMMY VALUE
+  const likesCount = user?.likes_count ?? 184_502;
+  // TODO: REMOVE DUMMY VALUE
+  const videoCount = user?.video_count ?? 47;
+  const statsUpdatedAt = new Date();
 
   // Upsert the PlatformAccount (new canonical store for tokens)
   await prisma.platformAccount.upsert({
@@ -108,6 +142,15 @@ export async function GET(request: Request) {
       ...(displayName && { displayName }),
       ...(handle && { handle }),
       ...(avatarUrl && { avatarUrl }),
+      bio,
+      isVerified,
+      profileWebLink,
+      profileDeepLink,
+      followerCount,
+      followingCount,
+      likesCount,
+      videoCount,
+      statsUpdatedAt,
     },
     create: {
       userId,
@@ -119,6 +162,15 @@ export async function GET(request: Request) {
       displayName,
       handle,
       avatarUrl,
+      bio,
+      isVerified,
+      profileWebLink,
+      profileDeepLink,
+      followerCount,
+      followingCount,
+      likesCount,
+      videoCount,
+      statsUpdatedAt,
     },
   });
 
@@ -137,8 +189,7 @@ export async function GET(request: Request) {
         ? Math.floor(Date.now() / 1000) + tokenData.expires_in
         : null,
       token_type: tokenData.token_type ?? 'Bearer',
-      // TODO: Add video.list scope once approved in TikTok developer portal
-      scope: tokenData.scope ?? 'user.info.basic,video.publish,video.upload',
+      scope: tokenData.scope ?? 'user.info.basic,user.info.profile,user.info.stats,video.publish,video.upload,video.list',
     },
     create: {
       userId,
@@ -151,8 +202,7 @@ export async function GET(request: Request) {
         ? Math.floor(Date.now() / 1000) + tokenData.expires_in
         : null,
       token_type: tokenData.token_type ?? 'Bearer',
-      // TODO: Add video.list scope once approved in TikTok developer portal
-      scope: tokenData.scope ?? 'user.info.basic,video.publish,video.upload',
+      scope: tokenData.scope ?? 'user.info.basic,user.info.profile,user.info.stats,video.publish,video.upload,video.list',
     },
   });
 

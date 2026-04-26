@@ -147,6 +147,96 @@ export async function checkPublishStatus(
   return data.data;
 }
 
+export interface DirectPostOptions {
+  title: string;
+  privacyLevel: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'SELF_ONLY';
+  disableComment?: boolean;
+  disableDuet?: boolean;
+  disableStitch?: boolean;
+}
+
+export async function initializeDirectPost(
+  accessToken: string,
+  videoSize: number,
+  options: DirectPostOptions
+): Promise<TikTokInitResponse> {
+  // TODO: REMOVE DUMMY VALUE — return fake init response when scope is not yet granted
+  if (process.env.TIKTOK_DIRECT_POST_MOCK === '1') {
+    return {
+      publish_id: `dummy_publish_${Date.now()}`,
+      upload_url: 'https://example.com/dummy-upload-url',
+    };
+  }
+
+  const response = await fetch(
+    `${TIKTOK_API_BASE}/post/publish/video/init/`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        post_info: {
+          title: options.title,
+          privacy_level: options.privacyLevel,
+          disable_comment: options.disableComment ?? false,
+          disable_duet: options.disableDuet ?? false,
+          disable_stitch: options.disableStitch ?? false,
+        },
+        source_info: {
+          source: 'FILE_UPLOAD',
+          video_size: videoSize,
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `TikTok initializeDirectPost failed: ${response.status} ${response.statusText}`
+    );
+  }
+
+  const data = (await response.json()) as { data: TikTokInitResponse };
+  return data.data;
+}
+
+export async function directPostToTikTok(
+  accessToken: string,
+  filePath: string,
+  options: DirectPostOptions
+): Promise<TikTokUploadResult> {
+  // TODO: REMOVE DUMMY VALUE — short-circuit upload + status polling in mock mode
+  if (process.env.TIKTOK_DIRECT_POST_MOCK === '1') {
+    return { publishId: `dummy_publish_${Date.now()}`, status: 'PUBLISH_COMPLETE' };
+  }
+
+  if (!accessToken) {
+    throw new Error('TikTok access token is required');
+  }
+
+  const fileStat = await stat(filePath);
+  const { publish_id, upload_url } = await initializeDirectPost(
+    accessToken,
+    fileStat.size,
+    options
+  );
+  await uploadVideoChunk(upload_url, filePath);
+
+  const maxAttempts = 30;
+  const pollIntervalMs = 5000;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const { status } = await checkPublishStatus(accessToken, publish_id);
+    if (status === 'PUBLISH_COMPLETE') return { publishId: publish_id, status };
+    if (status === 'FAILED') {
+      throw new Error(`TikTok direct post failed for publish_id: ${publish_id}`);
+    }
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+  }
+  return { publishId: publish_id, status: 'PROCESSING_UPLOAD' };
+}
+
 export async function uploadToTikTok(
   accessToken: string,
   filePath: string,

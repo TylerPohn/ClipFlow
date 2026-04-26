@@ -153,6 +153,15 @@ model PlatformAccount {
   tokenExpiresAt  DateTime?
   metadata        Json?
   tokenStatus     String    @default("valid") // "valid" | "expired" | "scope_error"
+  bio             String?
+  isVerified      Boolean   @default(false)
+  profileWebLink  String?
+  profileDeepLink String?
+  followerCount   Int?
+  followingCount  Int?
+  likesCount      Int?
+  videoCount      Int?
+  statsUpdatedAt  DateTime?
   lastSyncedAt    DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

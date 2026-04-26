@@ -40,6 +40,10 @@ interface PlatformFormState {
   description: string;
   tags: string;
   visibility: string;
+  postMode?: 'inbox' | 'direct';
+  disableComment?: boolean;
+  disableDuet?: boolean;
+  disableStitch?: boolean;
 }
 
 const PUBLISH_PLATFORMS = Object.entries(PLATFORM_CONFIG).filter(
@@ -255,6 +259,14 @@ export default function VideoDetailPage() {
             description: defaults.caption,
             tags: defaults.tags,
             visibility: 'public',
+            ...(key === 'TIKTOK'
+              ? {
+                  postMode: 'inbox',
+                  disableComment: false,
+                  disableDuet: false,
+                  disableStitch: false,
+                }
+              : {}),
           };
         }
         setPlatformForms(initialForms);
@@ -377,7 +389,11 @@ export default function VideoDetailPage() {
     }
   }
 
-  function updatePlatformForm(platform: string, field: keyof PlatformFormState, value: string) {
+  function updatePlatformForm(
+    platform: string,
+    field: keyof PlatformFormState,
+    value: string | boolean
+  ) {
     setPlatformForms((prev) => ({
       ...prev,
       [platform]: {
@@ -426,6 +442,15 @@ export default function VideoDetailPage() {
         description: form.description,
         visibility: form.visibility,
       };
+
+      if (platform === 'TIKTOK') {
+        body.postMode = form.postMode ?? 'inbox';
+        if (body.postMode === 'direct') {
+          body.disableComment = form.disableComment ?? false;
+          body.disableDuet = form.disableDuet ?? false;
+          body.disableStitch = form.disableStitch ?? false;
+        }
+      }
 
       if (scheduledAt) {
         body.scheduledAt = new Date(scheduledAt).toISOString();
@@ -793,6 +818,77 @@ export default function VideoDetailPage() {
                             <option value="unlisted">Unlisted</option>
                             <option value="private">Private</option>
                           </select>
+                        </div>
+                      )}
+
+                      {platformKey === 'TIKTOK' && (
+                        <div className={styles.field} style={{ marginTop: '0.75rem' }}>
+                          <label>Post mode</label>
+                          <div className={styles.radioGroup}>
+                            <label className={styles.radioLabel}>
+                              <input
+                                type="radio"
+                                name={`postMode-${platformKey}`}
+                                value="inbox"
+                                checked={(form.postMode ?? 'inbox') === 'inbox'}
+                                onChange={() => updatePlatformForm(platformKey, 'postMode', 'inbox')}
+                              />
+                              <span>Save to inbox (finish posting in the TikTok app)</span>
+                            </label>
+                            <label className={styles.radioLabel}>
+                              <input
+                                type="radio"
+                                name={`postMode-${platformKey}`}
+                                value="direct"
+                                checked={form.postMode === 'direct'}
+                                onChange={() => updatePlatformForm(platformKey, 'postMode', 'direct')}
+                              />
+                              <span>Post directly to my profile</span>
+                            </label>
+                          </div>
+
+                          {form.postMode === 'direct' && (
+                            <div className={styles.directPostOptions}>
+                              <label className={styles.checkboxLabel}>
+                                <input
+                                  type="checkbox"
+                                  checked={form.disableComment ?? false}
+                                  onChange={(e) =>
+                                    updatePlatformForm(platformKey, 'disableComment', e.target.checked)
+                                  }
+                                />
+                                <span>Disable comments</span>
+                              </label>
+                              <label className={styles.checkboxLabel}>
+                                <input
+                                  type="checkbox"
+                                  checked={form.disableDuet ?? false}
+                                  onChange={(e) =>
+                                    updatePlatformForm(platformKey, 'disableDuet', e.target.checked)
+                                  }
+                                />
+                                <span>Disable duet</span>
+                              </label>
+                              <label className={styles.checkboxLabel}>
+                                <input
+                                  type="checkbox"
+                                  checked={form.disableStitch ?? false}
+                                  onChange={(e) =>
+                                    updatePlatformForm(platformKey, 'disableStitch', e.target.checked)
+                                  }
+                                />
+                                <span>Disable stitch</span>
+                              </label>
+                            </div>
+                          )}
+
+                          {/* TODO: REMOVE DUMMY VALUE — visible-only banner for demo recording */}
+                          {form.postMode === 'direct' &&
+                            process.env.NEXT_PUBLIC_TIKTOK_DIRECT_POST_MOCK === '1' && (
+                              <div className={styles.demoNotice}>
+                                Demo mode — direct post is mocked until TikTok approves the scope.
+                              </div>
+                            )}
                         </div>
                       )}
 

@@ -14,6 +14,15 @@ interface AccountStatus {
   avatarUrl?: string | null;
   lastSyncedAt?: string | null;
   tokenStatus?: string | null;
+  bio?: string | null;
+  isVerified?: boolean;
+  profileWebLink?: string | null;
+  profileDeepLink?: string | null;
+  followerCount?: number | null;
+  followingCount?: number | null;
+  likesCount?: number | null;
+  videoCount?: number | null;
+  statsUpdatedAt?: string | null;
 }
 
 type PlatformKey = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM' | 'X';
@@ -56,6 +65,13 @@ function getCapabilities(platform: PlatformKey) {
   if (config?.supportsSync) caps.push('Browse & import');
   if (config?.supportsPost) caps.push('Publish');
   return caps;
+}
+
+function formatCompactNumber(count: number | null | undefined): string {
+  if (count == null) return '-';
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
+  return String(count);
 }
 
 export default function PlatformsIndexPage() {
@@ -150,6 +166,15 @@ export default function PlatformsIndexPage() {
           const needsReconnect = isConnected && account?.tokenStatus && account.tokenStatus !== 'valid';
           const capabilities = getCapabilities(platform);
           const color = PLATFORM_COLORS[platform];
+          const tiktokStats =
+            platform === 'TIKTOK' && isConnected && account
+              ? [
+                  { label: 'Followers', value: account.followerCount },
+                  { label: 'Following', value: account.followingCount },
+                  { label: 'Likes', value: account.likesCount },
+                  { label: 'Videos', value: account.videoCount },
+                ]
+              : [];
 
           return (
             <div key={platform} className={styles.card}>
@@ -190,13 +215,47 @@ export default function PlatformsIndexPage() {
                       )}
                       <div className={styles.accountMeta}>
                         {account.displayName && (
-                          <span className={styles.displayName}>{account.displayName}</span>
+                          <span className={styles.displayName}>
+                            {account.displayName}
+                            {account.isVerified && (
+                              <span className={styles.verifiedBadge} title="Verified">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                                  <path d="M12 2l2.39 2.39 3.36-.67.67 3.36L20.81 9.6 19.42 12l1.39 2.39-2.39 2.39-.67 3.36-3.36-.67L12 21.85l-2.39-2.39-3.36.67-.67-3.36L3.19 14.4 4.58 12 3.19 9.6l2.39-2.39.67-3.36 3.36.67L12 2zm-1.2 13.4l5.66-5.66-1.41-1.41-4.24 4.24-2.12-2.12-1.41 1.41 3.52 3.54z" />
+                                </svg>
+                              </span>
+                            )}
+                          </span>
                         )}
                         {account.handle && (
                           <span className={styles.handle}>{account.handle}</span>
                         )}
                       </div>
                     </div>
+                    {tiktokStats.length > 0 && (
+                      <div className={styles.statsRow}>
+                        {tiktokStats.map((stat) => (
+                          <div key={stat.label} className={styles.statBlock}>
+                            <span className={styles.statValue}>
+                              {formatCompactNumber(stat.value)}
+                            </span>
+                            <span className={styles.statLabel}>{stat.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {account.bio && (
+                      <p className={styles.bio}>{account.bio}</p>
+                    )}
+                    {account.profileWebLink && (
+                      <a
+                        className={styles.profileLink}
+                        href={account.profileWebLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        View profile ↗
+                      </a>
+                    )}
                     {account.lastSyncedAt && (
                       <div className={styles.lastSynced}>
                         Last synced {new Date(account.lastSyncedAt).toLocaleDateString()}

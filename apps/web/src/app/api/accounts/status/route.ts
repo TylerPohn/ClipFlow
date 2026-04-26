@@ -21,6 +21,15 @@ export async function GET() {
       avatarUrl: true,
       lastSyncedAt: true,
       tokenStatus: true,
+      bio: true,
+      isVerified: true,
+      profileWebLink: true,
+      profileDeepLink: true,
+      followerCount: true,
+      followingCount: true,
+      likesCount: true,
+      videoCount: true,
+      statsUpdatedAt: true,
     },
   });
 
@@ -39,6 +48,15 @@ export async function GET() {
         avatarUrl: account.avatarUrl,
         lastSyncedAt: account.lastSyncedAt,
         tokenStatus: account.tokenStatus,
+        bio: account.bio,
+        isVerified: account.isVerified,
+        profileWebLink: account.profileWebLink,
+        profileDeepLink: account.profileDeepLink,
+        followerCount: account.followerCount,
+        followingCount: account.followingCount,
+        likesCount: account.likesCount,
+        videoCount: account.videoCount,
+        statsUpdatedAt: account.statsUpdatedAt,
       };
     } else {
       accounts[platform] = { connected: false };

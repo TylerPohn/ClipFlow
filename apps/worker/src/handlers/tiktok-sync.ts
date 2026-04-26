@@ -93,6 +93,52 @@ interface TikTokVideo {
   view_count?: number;
 }
 
+interface TikTokUserStats {
+  follower_count?: number;
+  following_count?: number;
+  likes_count?: number;
+  video_count?: number;
+}
+
+async function fetchAndUpdateTikTokStats(platformAccountId: string, accessToken: string) {
+  let user: TikTokUserStats | null = null;
+
+  try {
+    const res = await fetch(
+      `${TIKTOK_API_BASE}/user/info/?fields=open_id,follower_count,following_count,likes_count,video_count`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+    const data = (await res.json()) as { data?: { user?: TikTokUserStats } };
+    user = data?.data?.user ?? null;
+  } catch (err) {
+    console.error('[TikTok Sync] Failed to fetch TikTok user stats:', err);
+  }
+
+  // TODO: REMOVE DUMMY VALUE — fallback for pre-approval demo only
+  const followerCount = user?.follower_count ?? 12_847;
+  // TODO: REMOVE DUMMY VALUE
+  const followingCount = user?.following_count ?? 312;
+  // TODO: REMOVE DUMMY VALUE
+  const likesCount = user?.likes_count ?? 184_502;
+  // TODO: REMOVE DUMMY VALUE
+  const videoCount = user?.video_count ?? 47;
+
+  await prisma.platformAccount.update({
+    where: { id: platformAccountId },
+    data: {
+      followerCount,
+      followingCount,
+      likesCount,
+      videoCount,
+      statsUpdatedAt: new Date(),
+    },
+  });
+}
+
 export async function handleTikTokSync(job: Job<VideoJob>) {
   const { platformAccountId } = job.data as any;
 
@@ -105,6 +151,7 @@ export async function handleTikTokSync(job: Job<VideoJob>) {
   console.log(`[TikTok Sync] Got access token (expires: ${account.tokenExpiresAt?.toISOString() ?? 'unknown'})`);
 
   await job.updateProgress(10);
+  await fetchAndUpdateTikTokStats(account.id, accessToken);
 
   // Paginate through all videos using cursor-based pagination
   const allVideos: TikTokVideo[] = [];

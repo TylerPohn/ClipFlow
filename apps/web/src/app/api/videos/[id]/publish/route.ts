@@ -10,6 +10,10 @@ interface PublishBody {
   hashtags?: string[];
   visibility?: string;
   scheduledAt?: string;
+  postMode?: 'inbox' | 'direct';
+  disableComment?: boolean;
+  disableDuet?: boolean;
+  disableStitch?: boolean;
 }
 
 export async function POST(
@@ -110,6 +114,10 @@ export async function POST(
         caption: body.caption,
         hashtags: body.hashtags,
         visibility: body.visibility,
+        postMode: body.postMode ?? 'inbox',
+        disableComment: body.disableComment,
+        disableDuet: body.disableDuet,
+        disableStitch: body.disableStitch,
       },
     });
   }

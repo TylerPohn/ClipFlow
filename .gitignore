@@ -60,5 +60,6 @@ libs/db/src/generated
 
 # Private deploy/server notes
 DEPLOY.local.md
+docs/dual-domain-setup.md
 CLAUDE.md
 AGENTS.md
