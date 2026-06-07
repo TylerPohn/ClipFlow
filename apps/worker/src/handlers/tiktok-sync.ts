@@ -93,44 +93,53 @@ interface TikTokVideo {
   view_count?: number;
 }
 
-interface TikTokUserStats {
+interface TikTokUserInfo {
   follower_count?: number;
   following_count?: number;
   likes_count?: number;
   video_count?: number;
+  bio_description?: string;
+  is_verified?: boolean;
+  profile_web_link?: string;
+  profile_deep_link?: string;
 }
 
+// Refreshes both stats (user.info.stats) and profile fields (user.info.profile)
+// so a Sync picks up profile changes — previously these only updated at link time.
 async function fetchAndUpdateTikTokStats(platformAccountId: string, accessToken: string) {
-  let user: TikTokUserStats | null = null;
+  let user: TikTokUserInfo | null = null;
 
   try {
     const res = await fetch(
-      `${TIKTOK_API_BASE}/user/info/?fields=open_id,follower_count,following_count,likes_count,video_count`,
+      `${TIKTOK_API_BASE}/user/info/?fields=open_id,follower_count,following_count,likes_count,video_count,bio_description,is_verified,profile_web_link,profile_deep_link`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       }
     );
-    const data = (await res.json()) as { data?: { user?: TikTokUserStats } };
+    const data = (await res.json()) as { data?: { user?: TikTokUserInfo } };
     user = data?.data?.user ?? null;
   } catch (err) {
-    console.error('[TikTok Sync] Failed to fetch TikTok user stats:', err);
+    console.error('[TikTok Sync] Failed to fetch TikTok user info:', err);
   }
 
-  const followerCount = user?.follower_count ?? null;
-  const followingCount = user?.following_count ?? null;
-  const likesCount = user?.likes_count ?? null;
-  const videoCount = user?.video_count ?? null;
+  // Only write when the fetch succeeded, so a transient failure doesn't wipe
+  // previously-synced profile/stats data.
+  if (!user) return;
 
   await prisma.platformAccount.update({
     where: { id: platformAccountId },
     data: {
-      followerCount,
-      followingCount,
-      likesCount,
-      videoCount,
-      statsUpdatedAt: user ? new Date() : null,
+      followerCount: user.follower_count ?? null,
+      followingCount: user.following_count ?? null,
+      likesCount: user.likes_count ?? null,
+      videoCount: user.video_count ?? null,
+      bio: user.bio_description ?? null,
+      isVerified: user.is_verified ?? false,
+      profileWebLink: user.profile_web_link ?? null,
+      profileDeepLink: user.profile_deep_link ?? null,
+      statsUpdatedAt: new Date(),
     },
   });
 }
