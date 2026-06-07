@@ -70,7 +70,6 @@ export async function GET(request: Request) {
   let displayName: string | null = null;
   let handle: string | null = null;
   let avatarUrl: string | null = null;
-  let username: string | null = null;
   let user: {
     display_name?: string;
     avatar_url?: string;
@@ -98,7 +97,6 @@ export async function GET(request: Request) {
     user = userInfoData?.data?.user ?? null;
     if (user) {
       displayName = user.display_name || null;
-      username = user.username || null;
       handle = user.username ? `@${user.username}` : null;
       avatarUrl = user.avatar_url || null;
     }
@@ -106,24 +104,15 @@ export async function GET(request: Request) {
     console.error('Failed to fetch TikTok user info:', err);
   }
 
-  // TODO: REMOVE DUMMY VALUE — fallback for pre-approval demo only
-  const bio = user?.bio_description ?? 'Multi-platform creator. Cliptopus user.';
-  // TODO: REMOVE DUMMY VALUE
-  const isVerified = user?.is_verified ?? true;
-  // TODO: REMOVE DUMMY VALUE
-  const profileWebLink =
-    user?.profile_web_link ?? `https://www.tiktok.com/@${username ?? 'demo_creator'}`;
-  // TODO: REMOVE DUMMY VALUE
-  const profileDeepLink = user?.profile_deep_link ?? `snssdk1233://user/profile/${openId}`;
-  // TODO: REMOVE DUMMY VALUE — fallback for pre-approval demo only
-  const followerCount = user?.follower_count ?? 12_847;
-  // TODO: REMOVE DUMMY VALUE
-  const followingCount = user?.following_count ?? 312;
-  // TODO: REMOVE DUMMY VALUE
-  const likesCount = user?.likes_count ?? 184_502;
-  // TODO: REMOVE DUMMY VALUE
-  const videoCount = user?.video_count ?? 47;
-  const statsUpdatedAt = new Date();
+  const bio = user?.bio_description ?? null;
+  const isVerified = user?.is_verified ?? false;
+  const profileWebLink = user?.profile_web_link ?? null;
+  const profileDeepLink = user?.profile_deep_link ?? null;
+  const followerCount = user?.follower_count ?? null;
+  const followingCount = user?.following_count ?? null;
+  const likesCount = user?.likes_count ?? null;
+  const videoCount = user?.video_count ?? null;
+  const statsUpdatedAt = user ? new Date() : null;
 
   // Upsert the PlatformAccount (new canonical store for tokens)
   await prisma.platformAccount.upsert({

@@ -160,14 +160,6 @@ export async function initializeDirectPost(
   videoSize: number,
   options: DirectPostOptions
 ): Promise<TikTokInitResponse> {
-  // TODO: REMOVE DUMMY VALUE — return fake init response when scope is not yet granted
-  if (process.env.TIKTOK_DIRECT_POST_MOCK === '1') {
-    return {
-      publish_id: `dummy_publish_${Date.now()}`,
-      upload_url: 'https://example.com/dummy-upload-url',
-    };
-  }
-
   const response = await fetch(
     `${TIKTOK_API_BASE}/post/publish/video/init/`,
     {
@@ -207,11 +199,6 @@ export async function directPostToTikTok(
   filePath: string,
   options: DirectPostOptions
 ): Promise<TikTokUploadResult> {
-  // TODO: REMOVE DUMMY VALUE — short-circuit upload + status polling in mock mode
-  if (process.env.TIKTOK_DIRECT_POST_MOCK === '1') {
-    return { publishId: `dummy_publish_${Date.now()}`, status: 'PUBLISH_COMPLETE' };
-  }
-
   if (!accessToken) {
     throw new Error('TikTok access token is required');
   }

@@ -881,14 +881,6 @@ export default function VideoDetailPage() {
                               </label>
                             </div>
                           )}
-
-                          {/* TODO: REMOVE DUMMY VALUE — visible-only banner for demo recording */}
-                          {form.postMode === 'direct' &&
-                            process.env.NEXT_PUBLIC_TIKTOK_DIRECT_POST_MOCK === '1' && (
-                              <div className={styles.demoNotice}>
-                                Demo mode — direct post is mocked until TikTok approves the scope.
-                              </div>
-                            )}
                         </div>
                       )}
 

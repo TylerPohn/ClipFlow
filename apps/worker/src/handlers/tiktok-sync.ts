@@ -118,14 +118,10 @@ async function fetchAndUpdateTikTokStats(platformAccountId: string, accessToken:
     console.error('[TikTok Sync] Failed to fetch TikTok user stats:', err);
   }
 
-  // TODO: REMOVE DUMMY VALUE — fallback for pre-approval demo only
-  const followerCount = user?.follower_count ?? 12_847;
-  // TODO: REMOVE DUMMY VALUE
-  const followingCount = user?.following_count ?? 312;
-  // TODO: REMOVE DUMMY VALUE
-  const likesCount = user?.likes_count ?? 184_502;
-  // TODO: REMOVE DUMMY VALUE
-  const videoCount = user?.video_count ?? 47;
+  const followerCount = user?.follower_count ?? null;
+  const followingCount = user?.following_count ?? null;
+  const likesCount = user?.likes_count ?? null;
+  const videoCount = user?.video_count ?? null;
 
   await prisma.platformAccount.update({
     where: { id: platformAccountId },
@@ -134,7 +130,7 @@ async function fetchAndUpdateTikTokStats(platformAccountId: string, accessToken:
       followingCount,
       likesCount,
       videoCount,
-      statsUpdatedAt: new Date(),
+      statsUpdatedAt: user ? new Date() : null,
     },
   });
 }
