@@ -14,6 +14,11 @@ interface PublishBody {
   disableComment?: boolean;
   disableDuet?: boolean;
   disableStitch?: boolean;
+  // TikTok Direct Post: the privacy level the user explicitly selected from the
+  // options creator_info/query returned, plus commercial-content disclosure.
+  privacyLevel?: string;
+  brandOrganic?: boolean;
+  brandedContent?: boolean;
 }
 
 export async function POST(
@@ -50,6 +55,23 @@ export async function POST(
       { error: 'Invalid or missing platform' },
       { status: 400 }
     );
+  }
+
+  // TikTok Direct Post compliance: privacy must be explicitly chosen, and
+  // branded content can never be posted privately.
+  if (body.platform === Platform.TIKTOK && body.postMode === 'direct') {
+    if (!body.privacyLevel) {
+      return NextResponse.json(
+        { error: 'A privacy level must be selected for a Direct Post' },
+        { status: 400 }
+      );
+    }
+    if (body.brandedContent && body.privacyLevel === 'SELF_ONLY') {
+      return NextResponse.json(
+        { error: 'Branded content cannot be posted with "Only me" visibility' },
+        { status: 400 }
+      );
+    }
   }
 
   // Determine if this is a scheduled post or an immediate publish
@@ -118,6 +140,9 @@ export async function POST(
         disableComment: body.disableComment,
         disableDuet: body.disableDuet,
         disableStitch: body.disableStitch,
+        privacyLevel: body.privacyLevel,
+        brandOrganic: body.brandOrganic,
+        brandedContent: body.brandedContent,
       },
     });
   }

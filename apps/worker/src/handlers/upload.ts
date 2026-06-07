@@ -82,12 +82,20 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
       } else if (platform === 'TIKTOK') {
         const freshToken = await ensureFreshTikTokToken(account.id);
         if (postMode === 'direct') {
+          // The privacy level is the exact enum the user picked from
+          // creator_info options; fall back to mapping the generic visibility
+          // field only if an older client didn't send it.
+          const privacyLevel =
+            (job.data.options?.privacyLevel as DirectPostOptions['privacyLevel'] | undefined) ??
+            toTikTokDirectPrivacy(visibility);
           const directOptions: DirectPostOptions = {
             title: fullCaption,
-            privacyLevel: toTikTokDirectPrivacy(visibility),
+            privacyLevel,
             disableComment: job.data.options?.disableComment === true,
             disableDuet: job.data.options?.disableDuet === true,
             disableStitch: job.data.options?.disableStitch === true,
+            brandOrganicToggle: job.data.options?.brandOrganic === true,
+            brandContentToggle: job.data.options?.brandedContent === true,
           };
           await job.updateProgress(50);
           const result = await directPostToTikTok(freshToken, videoPath, directOptions);

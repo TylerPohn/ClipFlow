@@ -44,7 +44,36 @@ interface PlatformFormState {
   disableComment?: boolean;
   disableDuet?: boolean;
   disableStitch?: boolean;
+  // TikTok Direct Post: privacy chosen from creator_info options (no default),
+  // plus commercial-content disclosure state.
+  tiktokPrivacy?: string;
+  commercialContent?: boolean;
+  brandOrganic?: boolean;
+  brandedContent?: boolean;
 }
+
+// Live creator capabilities returned by TikTok's creator_info/query endpoint.
+interface TikTokCreatorInfo {
+  creator_nickname: string;
+  privacy_level_options: string[];
+  comment_disabled: boolean;
+  duet_disabled: boolean;
+  stitch_disabled: boolean;
+  max_video_post_duration_sec: number;
+}
+
+// TikTok's display labels for each privacy_level enum value.
+const TIKTOK_PRIVACY_LABELS: Record<string, string> = {
+  PUBLIC_TO_EVERYONE: 'Public',
+  MUTUAL_FOLLOW_FRIENDS: 'Friends',
+  FOLLOWER_OF_CREATOR: 'Followers',
+  SELF_ONLY: 'Only me',
+};
+
+const TIKTOK_MUSIC_CONFIRMATION_URL =
+  'https://www.tiktok.com/legal/page/global/music-usage-confirmation/en';
+const TIKTOK_BRANDED_CONTENT_POLICY_URL =
+  'https://www.tiktok.com/legal/page/global/bc-policy/en';
 
 const PUBLISH_PLATFORMS = Object.entries(PLATFORM_CONFIG).filter(
   ([, cfg]) => (cfg as PlatformConfig).supportsPost
@@ -240,6 +269,11 @@ export default function VideoDetailPage() {
   const [publishingPlatforms, setPublishingPlatforms] = useState<Set<string>>(new Set());
   const [publishErrors, setPublishErrors] = useState<Record<string, string>>({});
 
+  // TikTok creator_info — fetched live when the user enters Direct Post mode.
+  const [creatorInfo, setCreatorInfo] = useState<TikTokCreatorInfo | null>(null);
+  const [creatorInfoLoading, setCreatorInfoLoading] = useState(false);
+  const [creatorInfoError, setCreatorInfoError] = useState('');
+
   const defaultsAppliedRef = useRef(false);
 
   const fetchVideo = useCallback(async () => {
@@ -265,6 +299,10 @@ export default function VideoDetailPage() {
                   disableComment: false,
                   disableDuet: false,
                   disableStitch: false,
+                  tiktokPrivacy: '',
+                  commercialContent: false,
+                  brandOrganic: false,
+                  brandedContent: false,
                 }
               : {}),
           };
@@ -389,6 +427,28 @@ export default function VideoDetailPage() {
     }
   }
 
+  // Fetch TikTok creator_info before the Direct Post composer is usable. TikTok
+  // requires the privacy / interaction options to come from this live call.
+  const loadCreatorInfo = useCallback(async () => {
+    setCreatorInfoLoading(true);
+    setCreatorInfoError('');
+    try {
+      const res = await fetch('/api/accounts/tiktok/creator-info');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to load TikTok settings');
+      }
+      setCreatorInfo(await res.json());
+    } catch (err: unknown) {
+      setCreatorInfo(null);
+      setCreatorInfoError(
+        err instanceof Error ? err.message : 'Failed to load TikTok settings'
+      );
+    } finally {
+      setCreatorInfoLoading(false);
+    }
+  }, []);
+
   function updatePlatformForm(
     platform: string,
     field: keyof PlatformFormState,
@@ -446,9 +506,12 @@ export default function VideoDetailPage() {
       if (platform === 'TIKTOK') {
         body.postMode = form.postMode ?? 'inbox';
         if (body.postMode === 'direct') {
+          body.privacyLevel = form.tiktokPrivacy;
           body.disableComment = form.disableComment ?? false;
           body.disableDuet = form.disableDuet ?? false;
           body.disableStitch = form.disableStitch ?? false;
+          body.brandOrganic = form.brandOrganic ?? false;
+          body.brandedContent = form.brandedContent ?? false;
         }
       }
 
@@ -735,6 +798,20 @@ export default function VideoDetailPage() {
               const form = platformForms[platformKey] || { title: '', description: '', tags: '', visibility: 'public' };
               const authRoute = PLATFORM_AUTH_ROUTE[platformKey];
 
+              // TikTok Direct Post compliance gating.
+              const isTikTokDirect = platformKey === 'TIKTOK' && form.postMode === 'direct';
+              const disclosureOn = form.commercialContent === true;
+              const disclosureValid =
+                !disclosureOn || form.brandOrganic === true || form.brandedContent === true;
+              const brandedPrivateConflict =
+                form.brandedContent === true && form.tiktokPrivacy === 'SELF_ONLY';
+              const tiktokDirectInvalid =
+                isTikTokDirect &&
+                (!creatorInfo ||
+                  !form.tiktokPrivacy ||
+                  !disclosureValid ||
+                  brandedPrivateConflict);
+
               return (
                 <div className={styles.card} key={platformKey}>
                   <h2 className={styles.sectionTitle}>{config.displayName}</h2>
@@ -807,7 +884,7 @@ export default function VideoDetailPage() {
                         </div>
                       )}
 
-                      {config.postFields.visibility && (
+                      {config.postFields.visibility && !isTikTokDirect && (
                         <div className={styles.field} style={{ marginTop: '0.75rem' }}>
                           <label>Visibility</label>
                           <select
@@ -841,7 +918,10 @@ export default function VideoDetailPage() {
                                 name={`postMode-${platformKey}`}
                                 value="direct"
                                 checked={form.postMode === 'direct'}
-                                onChange={() => updatePlatformForm(platformKey, 'postMode', 'direct')}
+                                onChange={() => {
+                                  updatePlatformForm(platformKey, 'postMode', 'direct');
+                                  if (!creatorInfo && !creatorInfoLoading) loadCreatorInfo();
+                                }}
                               />
                               <span>Post directly to my profile</span>
                             </label>
@@ -849,36 +929,207 @@ export default function VideoDetailPage() {
 
                           {form.postMode === 'direct' && (
                             <div className={styles.directPostOptions}>
-                              <label className={styles.checkboxLabel}>
-                                <input
-                                  type="checkbox"
-                                  checked={form.disableComment ?? false}
-                                  onChange={(e) =>
-                                    updatePlatformForm(platformKey, 'disableComment', e.target.checked)
-                                  }
-                                />
-                                <span>Disable comments</span>
-                              </label>
-                              <label className={styles.checkboxLabel}>
-                                <input
-                                  type="checkbox"
-                                  checked={form.disableDuet ?? false}
-                                  onChange={(e) =>
-                                    updatePlatformForm(platformKey, 'disableDuet', e.target.checked)
-                                  }
-                                />
-                                <span>Disable duet</span>
-                              </label>
-                              <label className={styles.checkboxLabel}>
-                                <input
-                                  type="checkbox"
-                                  checked={form.disableStitch ?? false}
-                                  onChange={(e) =>
-                                    updatePlatformForm(platformKey, 'disableStitch', e.target.checked)
-                                  }
-                                />
-                                <span>Disable stitch</span>
-                              </label>
+                              {creatorInfoLoading && (
+                                <p className={styles.mutedText}>Loading TikTok settings…</p>
+                              )}
+
+                              {!creatorInfoLoading && creatorInfoError && (
+                                <div>
+                                  <p className={styles.errorText}>{creatorInfoError}</p>
+                                  <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={() => loadCreatorInfo()}
+                                  >
+                                    Retry
+                                  </button>
+                                </div>
+                              )}
+
+                              {!creatorInfoLoading && creatorInfo && (
+                                <>
+                                  <p className={styles.mutedText}>
+                                    Posting as <strong>{creatorInfo.creator_nickname}</strong>
+                                  </p>
+
+                                  {/* Privacy — options come from creator_info, no default selection */}
+                                  <div className={styles.field}>
+                                    <label>Who can view this video</label>
+                                    <select
+                                      value={form.tiktokPrivacy ?? ''}
+                                      onChange={(e) =>
+                                        updatePlatformForm(platformKey, 'tiktokPrivacy', e.target.value)
+                                      }
+                                    >
+                                      <option value="" disabled>
+                                        Select who can view this video
+                                      </option>
+                                      {creatorInfo.privacy_level_options.map((opt) => (
+                                        <option
+                                          key={opt}
+                                          value={opt}
+                                          disabled={opt === 'SELF_ONLY' && form.brandedContent === true}
+                                          title={
+                                            opt === 'SELF_ONLY' && form.brandedContent === true
+                                              ? 'Branded content visibility cannot be set to private.'
+                                              : undefined
+                                          }
+                                        >
+                                          {TIKTOK_PRIVACY_LABELS[opt] ?? opt}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  {/* Interaction toggles — disabled ones reflect creator_info */}
+                                  <label className={styles.checkboxLabel}>
+                                    <input
+                                      type="checkbox"
+                                      disabled={creatorInfo.comment_disabled}
+                                      checked={creatorInfo.comment_disabled || (form.disableComment ?? false)}
+                                      onChange={(e) =>
+                                        updatePlatformForm(platformKey, 'disableComment', e.target.checked)
+                                      }
+                                    />
+                                    <span>Disable comments</span>
+                                  </label>
+                                  <label className={styles.checkboxLabel}>
+                                    <input
+                                      type="checkbox"
+                                      disabled={creatorInfo.duet_disabled}
+                                      checked={creatorInfo.duet_disabled || (form.disableDuet ?? false)}
+                                      onChange={(e) =>
+                                        updatePlatformForm(platformKey, 'disableDuet', e.target.checked)
+                                      }
+                                    />
+                                    <span>Disable duet</span>
+                                  </label>
+                                  <label className={styles.checkboxLabel}>
+                                    <input
+                                      type="checkbox"
+                                      disabled={creatorInfo.stitch_disabled}
+                                      checked={creatorInfo.stitch_disabled || (form.disableStitch ?? false)}
+                                      onChange={(e) =>
+                                        updatePlatformForm(platformKey, 'disableStitch', e.target.checked)
+                                      }
+                                    />
+                                    <span>Disable stitch</span>
+                                  </label>
+
+                                  {/* Commercial content disclosure — off by default */}
+                                  <div className={styles.disclosure}>
+                                    <label className={styles.checkboxLabel}>
+                                      <input
+                                        type="checkbox"
+                                        checked={form.commercialContent === true}
+                                        onChange={(e) => {
+                                          const on = e.target.checked;
+                                          updatePlatformForm(platformKey, 'commercialContent', on);
+                                          if (!on) {
+                                            updatePlatformForm(platformKey, 'brandOrganic', false);
+                                            updatePlatformForm(platformKey, 'brandedContent', false);
+                                          }
+                                        }}
+                                      />
+                                      <span>Disclose video content</span>
+                                    </label>
+                                    <p className={styles.mutedText}>
+                                      Turn on to declare that this post promotes a brand, product, or service.
+                                    </p>
+
+                                    {form.commercialContent === true && (
+                                      <div className={styles.disclosureOptions}>
+                                        <label className={styles.checkboxLabel}>
+                                          <input
+                                            type="checkbox"
+                                            checked={form.brandOrganic === true}
+                                            onChange={(e) =>
+                                              updatePlatformForm(platformKey, 'brandOrganic', e.target.checked)
+                                            }
+                                          />
+                                          <span>
+                                            <strong>Your brand</strong> — You are promoting yourself or
+                                            your own business. This content will be classified as Brand
+                                            Organic.
+                                          </span>
+                                        </label>
+                                        <label className={styles.checkboxLabel}>
+                                          <input
+                                            type="checkbox"
+                                            checked={form.brandedContent === true}
+                                            onChange={(e) => {
+                                              const checked = e.target.checked;
+                                              updatePlatformForm(platformKey, 'brandedContent', checked);
+                                              // Branded content can't be private — clear an invalid pick.
+                                              if (checked && form.tiktokPrivacy === 'SELF_ONLY') {
+                                                updatePlatformForm(platformKey, 'tiktokPrivacy', '');
+                                              }
+                                            }}
+                                          />
+                                          <span>
+                                            <strong>Branded content</strong> — You are promoting another
+                                            brand or a third party. This content will be classified as
+                                            Branded Content.
+                                          </span>
+                                        </label>
+
+                                        {(form.brandOrganic || form.brandedContent) && (
+                                          <p className={styles.mutedText}>
+                                            {form.brandedContent
+                                              ? "Your photo/video will be labeled 'Paid partnership'."
+                                              : "Your photo/video will be labeled 'Promotional content'."}
+                                          </p>
+                                        )}
+
+                                        {disclosureOn && !disclosureValid && (
+                                          <p className={styles.errorText}>
+                                            You need to indicate if your content promotes yourself, a
+                                            third party, or both.
+                                          </p>
+                                        )}
+
+                                        {(form.brandOrganic || form.brandedContent) && (
+                                          <p className={styles.mutedText}>
+                                            By posting, you agree to TikTok&apos;s{' '}
+                                            {form.brandedContent && (
+                                              <>
+                                                <a
+                                                  href={TIKTOK_BRANDED_CONTENT_POLICY_URL}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                >
+                                                  Branded Content Policy
+                                                </a>{' '}
+                                                and{' '}
+                                              </>
+                                            )}
+                                            <a
+                                              href={TIKTOK_MUSIC_CONFIRMATION_URL}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                            >
+                                              Music Usage Confirmation
+                                            </a>
+                                            .
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {brandedPrivateConflict && (
+                                    <p className={styles.errorText}>
+                                      Branded content visibility cannot be set to private.
+                                    </p>
+                                  )}
+
+                                  <p className={styles.mutedText}>
+                                    Max video length:{' '}
+                                    {Math.floor(creatorInfo.max_video_post_duration_sec / 60)}m{' '}
+                                    {creatorInfo.max_video_post_duration_sec % 60}s
+                                  </p>
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
@@ -906,7 +1157,8 @@ export default function VideoDetailPage() {
                               video.status !== 'READY' ||
                               post?.status === 'UPLOADING' ||
                               post?.status === 'POSTED' ||
-                              post?.status === 'SCHEDULED'
+                              post?.status === 'SCHEDULED' ||
+                              tiktokDirectInvalid
                             }
                           >
                             {isPublishing ? 'Scheduling...' : `Schedule for ${config.displayName}`}
@@ -920,7 +1172,8 @@ export default function VideoDetailPage() {
                               isPublishing ||
                               video.status !== 'READY' ||
                               post?.status === 'UPLOADING' ||
-                              post?.status === 'POSTED'
+                              post?.status === 'POSTED' ||
+                              tiktokDirectInvalid
                             }
                           >
                             {isPublishing

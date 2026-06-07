@@ -32,6 +32,53 @@ export interface TikTokStatusResponse {
   status: string;
 }
 
+/**
+ * Shape of the data returned by TikTok's creator_info/query endpoint. TikTok's
+ * UX guidelines require us to call this BEFORE rendering the post composer and
+ * to drive the privacy selector, interaction toggles, and duration limit from
+ * these live values (rather than hardcoding them).
+ */
+export interface TikTokCreatorInfo {
+  creator_avatar_url: string;
+  creator_username: string;
+  creator_nickname: string;
+  privacy_level_options: string[];
+  comment_disabled: boolean;
+  duet_disabled: boolean;
+  stitch_disabled: boolean;
+  max_video_post_duration_sec: number;
+}
+
+/**
+ * Queries the creator's posting capabilities. Must be called before the Direct
+ * Post composer renders — TikTok rejects apps whose composer options are not
+ * sourced from this endpoint.
+ */
+export async function queryCreatorInfo(
+  accessToken: string
+): Promise<TikTokCreatorInfo> {
+  const response = await fetch(
+    `${TIKTOK_API_BASE}/post/publish/creator_info/query/`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(
+      `TikTok queryCreatorInfo failed: ${response.status} ${response.statusText} — ${body}`
+    );
+  }
+
+  const data = (await response.json()) as { data: TikTokCreatorInfo };
+  return data.data;
+}
+
 export interface TikTokUploadResult {
   publishId: string;
   status: string;
@@ -166,12 +213,22 @@ export async function checkPublishStatus(
   return data.data;
 }
 
+export type TikTokPrivacyLevel =
+  | 'PUBLIC_TO_EVERYONE'
+  | 'MUTUAL_FOLLOW_FRIENDS'
+  | 'FOLLOWER_OF_CREATOR'
+  | 'SELF_ONLY';
+
 export interface DirectPostOptions {
   title: string;
-  privacyLevel: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'SELF_ONLY';
+  privacyLevel: TikTokPrivacyLevel;
   disableComment?: boolean;
   disableDuet?: boolean;
   disableStitch?: boolean;
+  /** Commercial-content disclosure: "Your brand" (Brand Organic / Promotional content). */
+  brandOrganicToggle?: boolean;
+  /** Commercial-content disclosure: "Branded content" (Paid partnership). */
+  brandContentToggle?: boolean;
 }
 
 export async function initializeDirectPost(
@@ -179,6 +236,14 @@ export async function initializeDirectPost(
   videoSize: number,
   options: DirectPostOptions
 ): Promise<TikTokInitResponse> {
+  // TikTok forbids branded content from being posted privately. Enforce here
+  // too so a malformed client request can never push a non-compliant post.
+  if (options.brandContentToggle && options.privacyLevel === 'SELF_ONLY') {
+    throw new Error(
+      'Branded content cannot be posted with SELF_ONLY visibility.'
+    );
+  }
+
   const { chunk_size, total_chunk_count } = computeChunking(videoSize);
   const response = await fetch(
     `${TIKTOK_API_BASE}/post/publish/video/init/`,
@@ -195,6 +260,8 @@ export async function initializeDirectPost(
           disable_comment: options.disableComment ?? false,
           disable_duet: options.disableDuet ?? false,
           disable_stitch: options.disableStitch ?? false,
+          brand_organic_toggle: options.brandOrganicToggle ?? false,
+          brand_content_toggle: options.brandContentToggle ?? false,
         },
         source_info: {
           source: 'FILE_UPLOAD',
