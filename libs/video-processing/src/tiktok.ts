@@ -4,6 +4,25 @@ import { stat } from 'fs/promises';
 const TIKTOK_API_BASE = 'https://open.tiktokapis.com/v2';
 const CHUNK_SIZE = 64 * 1024 * 1024; // 64MB
 
+/**
+ * Computes the chunk_size / total_chunk_count that TikTok's video init
+ * endpoints require for a FILE_UPLOAD source. Must stay consistent with how
+ * uploadVideoChunk actually transfers the file: a single chunk for files
+ * <= 64MB, otherwise 64MB chunks.
+ */
+function computeChunking(videoSize: number): {
+  chunk_size: number;
+  total_chunk_count: number;
+} {
+  if (videoSize <= CHUNK_SIZE) {
+    return { chunk_size: videoSize, total_chunk_count: 1 };
+  }
+  return {
+    chunk_size: CHUNK_SIZE,
+    total_chunk_count: Math.ceil(videoSize / CHUNK_SIZE),
+  };
+}
+
 export interface TikTokInitResponse {
   publish_id: string;
   upload_url: string;
@@ -22,6 +41,7 @@ export async function initializeUpload(
   accessToken: string,
   videoSize: number
 ): Promise<TikTokInitResponse> {
+  const { chunk_size, total_chunk_count } = computeChunking(videoSize);
   const response = await fetch(
     `${TIKTOK_API_BASE}/post/publish/inbox/video/init/`,
     {
@@ -31,21 +51,20 @@ export async function initializeUpload(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        post_info: {
-          title: '',
-          privacy_level: 'SELF_ONLY',
-        },
         source_info: {
           source: 'FILE_UPLOAD',
           video_size: videoSize,
+          chunk_size,
+          total_chunk_count,
         },
       }),
     }
   );
 
   if (!response.ok) {
+    const body = await response.text().catch(() => '');
     throw new Error(
-      `TikTok initializeUpload failed: ${response.status} ${response.statusText}`
+      `TikTok initializeUpload failed: ${response.status} ${response.statusText} — ${body}`
     );
   }
 
@@ -160,6 +179,7 @@ export async function initializeDirectPost(
   videoSize: number,
   options: DirectPostOptions
 ): Promise<TikTokInitResponse> {
+  const { chunk_size, total_chunk_count } = computeChunking(videoSize);
   const response = await fetch(
     `${TIKTOK_API_BASE}/post/publish/video/init/`,
     {
@@ -179,14 +199,17 @@ export async function initializeDirectPost(
         source_info: {
           source: 'FILE_UPLOAD',
           video_size: videoSize,
+          chunk_size,
+          total_chunk_count,
         },
       }),
     }
   );
 
   if (!response.ok) {
+    const body = await response.text().catch(() => '');
     throw new Error(
-      `TikTok initializeDirectPost failed: ${response.status} ${response.statusText}`
+      `TikTok initializeDirectPost failed: ${response.status} ${response.statusText} — ${body}`
     );
   }
 
