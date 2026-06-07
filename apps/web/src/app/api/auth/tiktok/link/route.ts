@@ -3,9 +3,13 @@ import { getServerSession } from '@/lib/auth';
 import * as crypto from 'crypto';
 
 export async function GET(request: Request) {
+  // Build redirects from the public app origin (NEXTAUTH_URL) rather than the
+  // internal request host, which behind the Cloudflare tunnel is localhost:3100.
+  const baseUrl = process.env.NEXTAUTH_URL ?? new URL(request.url).origin;
+
   const session = await getServerSession();
   if (!session?.user) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL('/login', baseUrl));
   }
 
   const clientKey = process.env.TIKTOK_CLIENT_KEY;
