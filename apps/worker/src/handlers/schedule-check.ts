@@ -95,17 +95,21 @@ export async function handleScheduleCheck(job: Job<VideoJob>): Promise<void> {
         continue;
       }
 
-      // Verify platform account exists
+      // Verify platform account exists. YOUTUBE_SHORTS posts through the
+      // linked YOUTUBE account — it has no OAuth flow of its own.
+      const accountPlatform =
+        post.platform === 'YOUTUBE_SHORTS' ? 'YOUTUBE' : post.platform;
+
       const account = await prisma.platformAccount.findFirst({
         where: {
           userId: post.video.userId,
-          platform: post.platform,
+          platform: accountPlatform,
         },
       });
 
       if (!account) {
         console.log(
-          `Skipping post ${post.id} — no ${post.platform} account linked`
+          `Skipping post ${post.id} — no ${accountPlatform} account linked`
         );
         await prisma.post.update({
           where: { id: post.id },

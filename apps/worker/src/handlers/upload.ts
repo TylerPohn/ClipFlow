@@ -12,6 +12,7 @@ import {
 import { prisma } from '@clipflow/db';
 import { directPostToTikTok, type DirectPostOptions } from '@clipflow/video-processing';
 import { uploadToX } from '../uploaders/x';
+import { uploadToYouTube } from '../uploaders/youtube';
 import { ensureFreshTikTokToken } from '../lib/tiktok-token';
 
 export async function handleUpload(job: Job<VideoJob>): Promise<void> {
@@ -59,18 +60,23 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
     const platform = post.platform;
 
     try {
+      // YOUTUBE_SHORTS has no OAuth flow of its own — it posts through the
+      // linked YOUTUBE account.
+      const accountPlatform = platform === 'YOUTUBE_SHORTS' ? 'YOUTUBE' : platform;
+
       const account = await prisma.platformAccount.findFirst({
         where: {
           userId: post.video.userId,
-          platform,
+          platform: accountPlatform,
         },
       });
 
       if (!account?.accessToken) {
-        throw new Error(`No ${platform} account linked or access token missing`);
+        throw new Error(
+          `No ${accountPlatform} account linked or access token missing`
+        );
       }
 
-      const videoBuffer = await readFile(videoPath);
       const caption = job.data.options?.caption as string | undefined;
       const hashtags = (job.data.options?.hashtags as string[] | undefined) ?? [];
       const visibility = (job.data.options?.visibility as string | undefined) ?? 'public';
@@ -78,6 +84,7 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
       const fullCaption = [caption, ...hashtags.map((t) => `#${t}`)].filter(Boolean).join(' ');
 
       if (platform === 'X') {
+        const videoBuffer = await readFile(videoPath);
         platformPostId = await uploadToX(account.id, videoBuffer, fullCaption, job);
       } else if (platform === 'TIKTOK') {
         const freshToken = await ensureFreshTikTokToken(account.id);
@@ -102,8 +109,31 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
           await job.updateProgress(85);
           platformPostId = result.publishId;
         } else {
+          const videoBuffer = await readFile(videoPath);
           platformPostId = await uploadToTikTok({ accessToken: freshToken }, videoBuffer, fullCaption, visibility, job);
         }
+      } else if (platform === 'YOUTUBE' || platform === 'YOUTUBE_SHORTS') {
+        // YouTube has no API flag for Shorts — it classifies a vertical video
+        // under 3 minutes as one automatically — so both destinations take the
+        // same upload path. The only hint the API accepts is the #Shorts tag in
+        // the description, so add it when the user targeted Shorts explicitly.
+        const description =
+          platform === 'YOUTUBE_SHORTS' && !/#shorts\b/i.test(fullCaption)
+            ? `${fullCaption} #Shorts`.trim()
+            : fullCaption;
+
+        platformPostId = await uploadToYouTube(
+          account.id,
+          videoPath,
+          {
+            // The composer sends the title as the caption for YouTube.
+            title: caption || post.video.title || 'Untitled',
+            description,
+            privacyStatus: toYouTubePrivacy(visibility),
+            tags: hashtags,
+          },
+          job
+        );
       } else {
         throw new Error(`Upload not implemented for platform: ${platform}`);
       }
@@ -154,6 +184,19 @@ function toTikTokPrivacy(visibility: string): string {
     case 'public':
     default:
       return 'PUBLIC_TO_EVERYONE';
+  }
+}
+
+// Map our visibility values to YouTube privacyStatus values.
+function toYouTubePrivacy(visibility: string): 'private' | 'unlisted' | 'public' {
+  switch (visibility) {
+    case 'private':
+      return 'private';
+    case 'unlisted':
+      return 'unlisted';
+    case 'public':
+    default:
+      return 'public';
   }
 }
 
