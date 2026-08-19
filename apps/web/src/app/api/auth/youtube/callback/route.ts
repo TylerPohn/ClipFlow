@@ -7,9 +7,13 @@ import { videoQueue } from '@/lib/queue';
 import { JobType } from '@clipflow/shared';
 
 export async function GET(request: Request) {
+  // Build redirects from the public app origin (NEXTAUTH_URL) rather than the
+  // internal request host, which behind the Cloudflare tunnel is localhost:3100.
+  const baseUrl = process.env.NEXTAUTH_URL ?? new URL(request.url).origin;
+
   const session = await getServerSession();
   if (!session?.user) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL('/login', baseUrl));
   }
 
   const userId = (session.user as { id: string }).id;
@@ -27,19 +31,19 @@ export async function GET(request: Request) {
 
   if (error) {
     return NextResponse.redirect(
-      new URL(`${returnTo}?youtube_error=${error}`, process.env.NEXTAUTH_URL)
+      new URL(`${returnTo}?youtube_error=${error}`, baseUrl)
     );
   }
 
   if (!code || !state || state !== savedState) {
     return NextResponse.redirect(
-      new URL(`${returnTo}?youtube_error=invalid_state`, process.env.NEXTAUTH_URL)
+      new URL(`${returnTo}?youtube_error=invalid_state`, baseUrl)
     );
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID!;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
-  const redirectUri = `${process.env.NEXTAUTH_URL}/api/auth/youtube/callback`;
+  const redirectUri = `${baseUrl}/api/auth/youtube/callback`;
 
   // Exchange code for tokens
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -59,7 +63,7 @@ export async function GET(request: Request) {
   if (!tokenData.access_token) {
     console.error('YouTube token exchange failed:', tokenData);
     return NextResponse.redirect(
-      new URL(`${returnTo}?youtube_error=token_failed`, process.env.NEXTAUTH_URL)
+      new URL(`${returnTo}?youtube_error=token_failed`, baseUrl)
     );
   }
 
@@ -146,5 +150,5 @@ export async function GET(request: Request) {
     options: { channelId: channel.channelId, platformAccountId: platformAccount.id },
   });
 
-  return NextResponse.redirect(new URL(returnTo, process.env.NEXTAUTH_URL));
+  return NextResponse.redirect(new URL(returnTo, baseUrl));
 }

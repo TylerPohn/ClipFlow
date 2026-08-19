@@ -3,9 +3,13 @@ import { getServerSession } from '@/lib/auth';
 import * as crypto from 'crypto';
 
 export async function GET(request: Request) {
+  // Build redirects from the public app origin (NEXTAUTH_URL) rather than the
+  // internal request host, which behind the Cloudflare tunnel is localhost:3100.
+  const baseUrl = process.env.NEXTAUTH_URL ?? new URL(request.url).origin;
+
   const session = await getServerSession();
   if (!session?.user) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL('/login', baseUrl));
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -17,7 +21,7 @@ export async function GET(request: Request) {
   const returnTo = searchParams.get('returnTo') ?? '/dashboard';
 
   const state = crypto.randomBytes(16).toString('hex');
-  const redirectUri = `${process.env.NEXTAUTH_URL}/api/auth/youtube/callback`;
+  const redirectUri = `${baseUrl}/api/auth/youtube/callback`;
 
   const params = new URLSearchParams({
     client_id: clientId,
