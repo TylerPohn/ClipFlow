@@ -30,6 +30,7 @@ export interface YouTubeUploadOptions {
   description: string;
   privacyStatus: YouTubePrivacyStatus;
   tags?: string[];
+  madeForKids: boolean;
 }
 
 interface GoogleTokenResponse {
@@ -89,7 +90,9 @@ async function getValidAccessToken(platformAccountId: string): Promise<string> {
     if (!res.ok) {
       const errorBody = await res.text();
       console.error(`YouTube token refresh failed: ${res.status}`, errorBody);
-      throw new Error(`YouTube token refresh failed: ${res.status} - ${errorBody}`);
+      throw new Error(
+        `YouTube token refresh failed: ${res.status} - ${errorBody}`,
+      );
     }
 
     const data = (await res.json()) as GoogleTokenResponse;
@@ -132,7 +135,7 @@ function isRetryableStatus(status: number): boolean {
 function describeYouTubeError(
   context: string,
   status: number,
-  body: string
+  body: string,
 ): string {
   let reason: string | undefined;
   let message: string | undefined;
@@ -214,7 +217,7 @@ function parseResumeOffset(rangeHeader: string | null): number {
 async function queryResumeState(
   sessionUrl: string,
   authHeader: string,
-  fileSize: number
+  fileSize: number,
 ): Promise<ResumeState> {
   const res = await fetch(sessionUrl, {
     method: 'PUT',
@@ -225,7 +228,10 @@ async function queryResumeState(
   });
 
   if (res.status === 308) {
-    return { kind: 'incomplete', offset: parseResumeOffset(res.headers.get('range')) };
+    return {
+      kind: 'incomplete',
+      offset: parseResumeOffset(res.headers.get('range')),
+    };
   }
 
   const body = await res.text();
@@ -242,11 +248,13 @@ async function queryResumeState(
 async function readChunk(
   handle: FileHandle,
   start: number,
-  length: number
+  length: number,
 ): Promise<Uint8Array> {
   const buffer = Buffer.alloc(length);
   const { bytesRead } = await handle.read(buffer, 0, length, start);
-  return new Uint8Array(bytesRead === length ? buffer : buffer.subarray(0, bytesRead));
+  return new Uint8Array(
+    bytesRead === length ? buffer : buffer.subarray(0, bytesRead),
+  );
 }
 
 /**
@@ -256,7 +264,7 @@ async function readChunk(
 async function initResumableSession(
   authHeader: string,
   fileSize: number,
-  options: YouTubeUploadOptions
+  options: YouTubeUploadOptions,
 ): Promise<string> {
   const body = JSON.stringify({
     snippet: {
@@ -267,7 +275,7 @@ async function initResumableSession(
     },
     status: {
       privacyStatus: options.privacyStatus,
-      selfDeclaredMadeForKids: false,
+      selfDeclaredMadeForKids: options.madeForKids,
     },
   });
 
@@ -286,7 +294,9 @@ async function initResumableSession(
     if (res.ok) {
       const sessionUrl = res.headers.get('location');
       if (!sessionUrl) {
-        throw new Error('YouTube resumable init succeeded but returned no Location header');
+        throw new Error(
+          'YouTube resumable init succeeded but returned no Location header',
+        );
       }
       return sessionUrl;
     }
@@ -294,12 +304,14 @@ async function initResumableSession(
     const errorBody = await res.text();
 
     if (!isRetryableStatus(res.status) || attempt === MAX_INIT_ATTEMPTS) {
-      throw new Error(describeYouTubeError('resumable init', res.status, errorBody));
+      throw new Error(
+        describeYouTubeError('resumable init', res.status, errorBody),
+      );
     }
 
     console.error(
       `YouTube resumable init attempt ${attempt} failed (${res.status}), retrying:`,
-      errorBody
+      errorBody,
     );
     await sleep(backoffMs(attempt));
   }
@@ -317,7 +329,7 @@ async function uploadSessionBytes(
   authHeader: string,
   handle: FileHandle,
   fileSize: number,
-  job: Job<VideoJob>
+  job: Job<VideoJob>,
 ): Promise<string> {
   let offset = 0;
   let attempt = 0;
@@ -353,12 +365,12 @@ async function uploadSessionBytes(
         throw new Error(
           `YouTube chunk upload at byte ${offset} failed after ${attempt} attempts: ${
             networkError instanceof Error ? networkError.message : networkError
-          }`
+          }`,
         );
       }
       console.error(
         `YouTube chunk upload at byte ${offset} errored, attempt ${attempt}:`,
-        networkError instanceof Error ? networkError.message : networkError
+        networkError instanceof Error ? networkError.message : networkError,
       );
       await sleep(backoffMs(attempt));
       const state = await queryResumeState(sessionUrl, authHeader, fileSize);
@@ -375,7 +387,7 @@ async function uploadSessionBytes(
         attempt += 1;
         if (attempt >= MAX_CHUNK_ATTEMPTS) {
           throw new Error(
-            `YouTube upload stalled at byte ${offset} of ${fileSize} after ${attempt} attempts`
+            `YouTube upload stalled at byte ${offset} of ${fileSize} after ${attempt} attempts`,
           );
         }
         await sleep(backoffMs(attempt));
@@ -395,17 +407,21 @@ async function uploadSessionBytes(
     const errorBody = await res.text();
 
     if (!isRetryableStatus(res.status)) {
-      throw new Error(describeYouTubeError('chunk upload', res.status, errorBody));
+      throw new Error(
+        describeYouTubeError('chunk upload', res.status, errorBody),
+      );
     }
 
     attempt += 1;
     if (attempt >= MAX_CHUNK_ATTEMPTS) {
-      throw new Error(describeYouTubeError('chunk upload', res.status, errorBody));
+      throw new Error(
+        describeYouTubeError('chunk upload', res.status, errorBody),
+      );
     }
 
     console.error(
       `YouTube chunk upload at byte ${offset} failed (${res.status}), attempt ${attempt}:`,
-      errorBody
+      errorBody,
     );
     await sleep(backoffMs(attempt));
     const state = await queryResumeState(sessionUrl, authHeader, fileSize);
@@ -417,7 +433,7 @@ async function uploadSessionBytes(
   const state = await queryResumeState(sessionUrl, authHeader, fileSize);
   if (state.kind === 'complete') return state.videoId;
   throw new Error(
-    `YouTube upload sent all ${fileSize} bytes but the session never returned a video ID`
+    `YouTube upload sent all ${fileSize} bytes but the session never returned a video ID`,
   );
 }
 
@@ -435,7 +451,7 @@ export async function uploadToYouTube(
   platformAccountId: string,
   videoPath: string,
   options: YouTubeUploadOptions,
-  job: Job<VideoJob>
+  job: Job<VideoJob>,
 ): Promise<string> {
   const accessToken = await getValidAccessToken(platformAccountId);
   const authHeader = `Bearer ${accessToken}`;
@@ -448,7 +464,7 @@ export async function uploadToYouTube(
   // Step 1: Open the resumable session (metadata only, no bytes yet)
   const sessionUrl = await initResumableSession(authHeader, fileSize, options);
   console.log(
-    `YouTube resumable session opened for ${fileSize} bytes (privacy: ${options.privacyStatus})`
+    `YouTube resumable session opened for ${fileSize} bytes (privacy: ${options.privacyStatus})`,
   );
 
   await job.updateProgress(40);
@@ -462,7 +478,7 @@ export async function uploadToYouTube(
       authHeader,
       handle,
       fileSize,
-      job
+      job,
     );
   } finally {
     await handle.close();

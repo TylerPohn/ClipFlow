@@ -7,9 +7,13 @@ import { videoQueue } from '@/lib/queue';
 interface PublishBody {
   platform?: string;
   caption?: string;
+  title?: string;
+  description?: string;
   hashtags?: string[];
   visibility?: string;
   scheduledAt?: string;
+  madeForKids?: boolean;
+  youtubeCommunityGuidelinesAccepted?: boolean;
   postMode?: 'inbox' | 'direct';
   disableComment?: boolean;
   disableDuet?: boolean;
@@ -23,7 +27,7 @@ interface PublishBody {
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession();
   if (!session?.user) {
@@ -44,16 +48,19 @@ export async function POST(
   if (video.status !== VideoStatus.READY) {
     return NextResponse.json(
       { error: 'Video is not ready for publishing' },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   const body = (await request.json()) as PublishBody;
 
-  if (!body.platform || !Object.values(Platform).includes(body.platform as Platform)) {
+  if (
+    !body.platform ||
+    !Object.values(Platform).includes(body.platform as Platform)
+  ) {
     return NextResponse.json(
       { error: 'Invalid or missing platform' },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -63,13 +70,34 @@ export async function POST(
     if (!body.privacyLevel) {
       return NextResponse.json(
         { error: 'A privacy level must be selected for a Direct Post' },
-        { status: 400 }
+        { status: 400 },
       );
     }
     if (body.brandedContent && body.privacyLevel === 'SELF_ONLY') {
       return NextResponse.json(
         { error: 'Branded content cannot be posted with "Only me" visibility' },
-        { status: 400 }
+        { status: 400 },
+      );
+    }
+  }
+
+  if (
+    body.platform === Platform.YOUTUBE ||
+    body.platform === Platform.YOUTUBE_SHORTS
+  ) {
+    if (typeof body.madeForKids !== 'boolean') {
+      return NextResponse.json(
+        { error: 'You must select whether the video is made for kids' },
+        { status: 400 },
+      );
+    }
+    if (body.youtubeCommunityGuidelinesAccepted !== true) {
+      return NextResponse.json(
+        {
+          error:
+            'You must confirm that the video complies with YouTube policies',
+        },
+        { status: 400 },
       );
     }
   }
@@ -83,13 +111,13 @@ export async function POST(
     if (isNaN(scheduledAt.getTime())) {
       return NextResponse.json(
         { error: 'Invalid scheduledAt date' },
-        { status: 400 }
+        { status: 400 },
       );
     }
     if (scheduledAt <= new Date()) {
       return NextResponse.json(
         { error: 'scheduledAt must be in the future' },
-        { status: 400 }
+        { status: 400 },
       );
     }
   }
@@ -134,8 +162,11 @@ export async function POST(
         postId: post.id,
         platform: body.platform,
         caption: body.caption,
+        title: body.title,
+        description: body.description,
         hashtags: body.hashtags,
         visibility: body.visibility,
+        madeForKids: body.madeForKids,
         postMode: body.postMode ?? 'inbox',
         disableComment: body.disableComment,
         disableDuet: body.disableDuet,

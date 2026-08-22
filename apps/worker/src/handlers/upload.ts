@@ -10,7 +10,10 @@ import {
   downloadFile,
 } from '@clipflow/shared';
 import { prisma } from '@clipflow/db';
-import { directPostToTikTok, type DirectPostOptions } from '@clipflow/video-processing';
+import {
+  directPostToTikTok,
+  type DirectPostOptions,
+} from '@clipflow/video-processing';
 import { uploadToX } from '../uploaders/x';
 import { uploadToYouTube } from '../uploaders/youtube';
 import { ensureFreshTikTokToken } from '../lib/tiktok-token';
@@ -23,7 +26,10 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
     throw new Error('options.postId is required for UPLOAD jobs');
   }
 
-  const tmpDir = path.join(os.tmpdir(), `clipflow-upload-${crypto.randomUUID()}`);
+  const tmpDir = path.join(
+    os.tmpdir(),
+    `clipflow-upload-${crypto.randomUUID()}`,
+  );
 
   try {
     // 1. Get post record with video relation
@@ -50,7 +56,7 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
     await downloadFile(
       S3_BUCKETS.PROCESSED,
       post.video.processedStorageKey,
-      videoPath
+      videoPath,
     );
 
     await job.updateProgress(30);
@@ -62,7 +68,8 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
     try {
       // YOUTUBE_SHORTS has no OAuth flow of its own — it posts through the
       // linked YOUTUBE account.
-      const accountPlatform = platform === 'YOUTUBE_SHORTS' ? 'YOUTUBE' : platform;
+      const accountPlatform =
+        platform === 'YOUTUBE_SHORTS' ? 'YOUTUBE' : platform;
 
       const account = await prisma.platformAccount.findFirst({
         where: {
@@ -73,19 +80,33 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
 
       if (!account?.accessToken) {
         throw new Error(
-          `No ${accountPlatform} account linked or access token missing`
+          `No ${accountPlatform} account linked or access token missing`,
         );
       }
 
       const caption = job.data.options?.caption as string | undefined;
-      const hashtags = (job.data.options?.hashtags as string[] | undefined) ?? [];
-      const visibility = (job.data.options?.visibility as string | undefined) ?? 'public';
-      const postMode = (job.data.options?.postMode as string | undefined) ?? 'inbox';
-      const fullCaption = [caption, ...hashtags.map((t) => `#${t}`)].filter(Boolean).join(' ');
+      const title = job.data.options?.title as string | undefined;
+      const requestedDescription = job.data.options?.description as
+        | string
+        | undefined;
+      const hashtags =
+        (job.data.options?.hashtags as string[] | undefined) ?? [];
+      const visibility =
+        (job.data.options?.visibility as string | undefined) ?? 'public';
+      const postMode =
+        (job.data.options?.postMode as string | undefined) ?? 'inbox';
+      const fullCaption = [caption, ...hashtags.map((t) => `#${t}`)]
+        .filter(Boolean)
+        .join(' ');
 
       if (platform === 'X') {
         const videoBuffer = await readFile(videoPath);
-        platformPostId = await uploadToX(account.id, videoBuffer, fullCaption, job);
+        platformPostId = await uploadToX(
+          account.id,
+          videoBuffer,
+          fullCaption,
+          job,
+        );
       } else if (platform === 'TIKTOK') {
         const freshToken = await ensureFreshTikTokToken(account.id);
         if (postMode === 'direct') {
@@ -93,8 +114,9 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
           // creator_info options; fall back to mapping the generic visibility
           // field only if an older client didn't send it.
           const privacyLevel =
-            (job.data.options?.privacyLevel as DirectPostOptions['privacyLevel'] | undefined) ??
-            toTikTokDirectPrivacy(visibility);
+            (job.data.options?.privacyLevel as
+              | DirectPostOptions['privacyLevel']
+              | undefined) ?? toTikTokDirectPrivacy(visibility);
           const directOptions: DirectPostOptions = {
             title: fullCaption,
             privacyLevel,
@@ -105,34 +127,51 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
             brandContentToggle: job.data.options?.brandedContent === true,
           };
           await job.updateProgress(50);
-          const result = await directPostToTikTok(freshToken, videoPath, directOptions);
+          const result = await directPostToTikTok(
+            freshToken,
+            videoPath,
+            directOptions,
+          );
           await job.updateProgress(85);
           platformPostId = result.publishId;
         } else {
           const videoBuffer = await readFile(videoPath);
-          platformPostId = await uploadToTikTok({ accessToken: freshToken }, videoBuffer, fullCaption, visibility, job);
+          platformPostId = await uploadToTikTok(
+            { accessToken: freshToken },
+            videoBuffer,
+            fullCaption,
+            visibility,
+            job,
+          );
         }
       } else if (platform === 'YOUTUBE' || platform === 'YOUTUBE_SHORTS') {
         // YouTube has no API flag for Shorts — it classifies a vertical video
         // under 3 minutes as one automatically — so both destinations take the
         // same upload path. The only hint the API accepts is the #Shorts tag in
         // the description, so add it when the user targeted Shorts explicitly.
+        const baseDescription = [
+          requestedDescription,
+          ...hashtags.map((tag) => `#${tag}`),
+        ]
+          .filter(Boolean)
+          .join(' ');
         const description =
-          platform === 'YOUTUBE_SHORTS' && !/#shorts\b/i.test(fullCaption)
-            ? `${fullCaption} #Shorts`.trim()
-            : fullCaption;
+          platform === 'YOUTUBE_SHORTS' && !/#shorts\b/i.test(baseDescription)
+            ? `${baseDescription} #Shorts`.trim()
+            : baseDescription;
 
         platformPostId = await uploadToYouTube(
           account.id,
           videoPath,
           {
             // The composer sends the title as the caption for YouTube.
-            title: caption || post.video.title || 'Untitled',
+            title: title || caption || post.video.title || 'Untitled',
             description,
             privacyStatus: toYouTubePrivacy(visibility),
             tags: hashtags,
+            madeForKids: job.data.options?.madeForKids === true,
           },
-          job
+          job,
         );
       } else {
         throw new Error(`Upload not implemented for platform: ${platform}`);
@@ -142,7 +181,7 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
     } catch (uploadError) {
       console.error(
         `Platform upload failed for post ${postId}:`,
-        uploadError instanceof Error ? uploadError.message : uploadError
+        uploadError instanceof Error ? uploadError.message : uploadError,
       );
 
       // 5. Mark as FAILED
@@ -188,7 +227,9 @@ function toTikTokPrivacy(visibility: string): string {
 }
 
 // Map our visibility values to YouTube privacyStatus values.
-function toYouTubePrivacy(visibility: string): 'private' | 'unlisted' | 'public' {
+function toYouTubePrivacy(
+  visibility: string,
+): 'private' | 'unlisted' | 'public' {
   switch (visibility) {
     case 'private':
       return 'private';
@@ -202,7 +243,7 @@ function toYouTubePrivacy(visibility: string): 'private' | 'unlisted' | 'public'
 
 // Direct Post supports a different set of privacy values than the inbox flow.
 function toTikTokDirectPrivacy(
-  visibility: string
+  visibility: string,
 ): DirectPostOptions['privacyLevel'] {
   switch (visibility) {
     case 'private':
@@ -220,7 +261,7 @@ async function uploadToTikTok(
   videoBuffer: Buffer,
   fullCaption: string,
   visibility: string,
-  job: Job<VideoJob>
+  job: Job<VideoJob>,
 ): Promise<string> {
   await job.updateProgress(50);
 
@@ -245,23 +286,23 @@ async function uploadToTikTok(
           total_chunk_count: 1,
         },
       }),
-    }
+    },
   );
 
   const initBody = await initResponse.text();
   console.log(`TikTok init response (${initResponse.status}):`, initBody);
 
   if (!initResponse.ok) {
-    throw new Error(
-      `TikTok init failed (${initResponse.status}): ${initBody}`
-    );
+    throw new Error(`TikTok init failed (${initResponse.status}): ${initBody}`);
   }
 
   const initData = JSON.parse(initBody) as {
     data: { publish_id: string; upload_url: string };
   };
 
-  console.log(`TikTok publish_id: ${initData.data.publish_id}, upload_url: ${initData.data.upload_url}`);
+  console.log(
+    `TikTok publish_id: ${initData.data.publish_id}, upload_url: ${initData.data.upload_url}`,
+  );
 
   await job.updateProgress(70);
 
@@ -280,7 +321,7 @@ async function uploadToTikTok(
 
   if (!uploadResponse.ok) {
     throw new Error(
-      `TikTok upload failed (${uploadResponse.status}): ${uploadBody}`
+      `TikTok upload failed (${uploadResponse.status}): ${uploadBody}`,
     );
   }
 
@@ -296,7 +337,7 @@ async function uploadToTikTok(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ publish_id: publishId }),
-    }
+    },
   );
   const statusBody = await statusResponse.text();
   console.log(`TikTok publish status (${statusResponse.status}):`, statusBody);

@@ -34,7 +34,8 @@ function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  if (h > 0)
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
@@ -65,7 +66,9 @@ export default function PlatformBrowsePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [syncing, setSyncing] = useState(false);
-  const needsReconnect = account?.tokenStatus === 'expired' || account?.tokenStatus === 'scope_error';
+  const needsReconnect =
+    account?.tokenStatus === 'expired' ||
+    account?.tokenStatus === 'scope_error';
   const [disconnecting, setDisconnecting] = useState(false);
   const [importingId, setImportingId] = useState<string | null>(null);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
@@ -84,7 +87,8 @@ export default function PlatformBrowsePage() {
     async function checkConnection() {
       try {
         const res = await fetch(`/api/accounts/${rawPlatform}`);
-        if (!res.ok) throw new Error(`Failed to check ${config?.displayName} connection`);
+        if (!res.ok)
+          throw new Error(`Failed to check ${config?.displayName} connection`);
         const data = await res.json();
         setConnected(data.connected);
         if (data.connected) {
@@ -114,7 +118,8 @@ export default function PlatformBrowsePage() {
     async function fetchVideos() {
       try {
         const res = await fetch(`/api/platforms/${rawPlatform}/videos`);
-        if (!res.ok) throw new Error(`Failed to fetch ${config?.displayName} videos`);
+        if (!res.ok)
+          throw new Error(`Failed to fetch ${config?.displayName} videos`);
         const data = await res.json();
         setVideos(data.videos);
         setNextPageToken(data.nextPageToken ?? null);
@@ -141,20 +146,22 @@ export default function PlatformBrowsePage() {
     setLoadingMore(true);
     try {
       const res = await fetch(
-        `/api/platforms/${rawPlatform}/videos?pageToken=${encodeURIComponent(nextPageToken)}`
+        `/api/platforms/${rawPlatform}/videos?pageToken=${encodeURIComponent(nextPageToken)}`,
       );
       if (!res.ok) throw new Error('Failed to load more videos');
       const data = await res.json();
       setVideos((prev) => {
         const existingIds = new Set(prev.map((v) => v.videoId));
         const newVideos = (data.videos as PlatformVideo[]).filter(
-          (v) => !existingIds.has(v.videoId)
+          (v) => !existingIds.has(v.videoId),
         );
         return [...prev, ...newVideos];
       });
       setNextPageToken(data.nextPageToken ?? null);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load more videos');
+      setError(
+        err instanceof Error ? err.message : 'Failed to load more videos',
+      );
     } finally {
       setLoadingMore(false);
     }
@@ -170,7 +177,7 @@ export default function PlatformBrowsePage() {
           loadMore();
         }
       },
-      { rootMargin: '200px' }
+      { rootMargin: '200px' },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
@@ -180,7 +187,9 @@ export default function PlatformBrowsePage() {
     setSyncing(true);
     setError('');
     try {
-      const res = await fetch(`/api/platforms/${rawPlatform}/sync`, { method: 'POST' });
+      const res = await fetch(`/api/platforms/${rawPlatform}/sync`, {
+        method: 'POST',
+      });
       if (!res.ok) throw new Error('Failed to sync videos');
       // Wait briefly for sync to process, then re-fetch
       await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -231,13 +240,23 @@ export default function PlatformBrowsePage() {
   }
 
   async function handleDisconnect() {
-    if (!confirm(`Are you sure you want to disconnect your ${config?.displayName} account?`)) {
+    const dataNotice =
+      platform === 'YOUTUBE'
+        ? ' This revokes Google access and removes synchronized YouTube data from Cliptopus.'
+        : '';
+    if (
+      !confirm(
+        `Are you sure you want to disconnect your ${config?.displayName} account?${dataNotice}`,
+      )
+    ) {
       return;
     }
     setDisconnecting(true);
     setError('');
     try {
-      const res = await fetch(`/api/accounts/${rawPlatform}/disconnect`, { method: 'POST' });
+      const res = await fetch(`/api/accounts/${rawPlatform}/disconnect`, {
+        method: 'POST',
+      });
       if (!res.ok) throw new Error('Failed to disconnect account');
       setConnected(false);
       setAccount(null);
@@ -277,13 +296,19 @@ export default function PlatformBrowsePage() {
       <div className={styles.container}>
         <div className={styles.connectCard}>
           <div className={styles.connectIcon}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="var(--accent)">
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="var(--accent)"
+            >
               <path d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
           <h2>Connect Your {config.displayName} Account</h2>
           <p>
-            Link your {config.displayName} account to browse and import your videos into Cliptopus.
+            Link your {config.displayName} account to browse and import your
+            videos into Cliptopus.
           </p>
           <a
             href={`${PLATFORM_AUTH_PATHS[platform]}?returnTo=/dashboard/platforms/${rawPlatform}`}
@@ -302,8 +327,9 @@ export default function PlatformBrowsePage() {
         <div className={styles.notSupported}>
           <h2>{config.displayName}</h2>
           <p>
-            Videos from {config.displayName} will appear here once browsing is supported.
-            You can still post to {config.displayName} from your videos.
+            Videos from {config.displayName} will appear here once browsing is
+            supported. You can still post to {config.displayName} from your
+            videos.
           </p>
         </div>
       </div>
@@ -316,14 +342,22 @@ export default function PlatformBrowsePage() {
         <div className={styles.channelInfo}>
           {account?.avatarUrl && (
             <div className={styles.channelThumb}>
-              <img src={account.avatarUrl} alt={account.displayName} width={48} height={48} />
+              <img
+                src={account.avatarUrl}
+                alt={account.displayName}
+                width={48}
+                height={48}
+              />
             </div>
           )}
           <div className={styles.channelMeta}>
             <h1>{account?.displayName}</h1>
             {account?.handle && <span>{account.handle}</span>}
             {account?.lastSyncedAt && (
-              <span>Last synced: {new Date(account.lastSyncedAt).toLocaleDateString()}</span>
+              <span>
+                Last synced:{' '}
+                {new Date(account.lastSyncedAt).toLocaleDateString()}
+              </span>
             )}
           </div>
         </div>
@@ -361,9 +395,17 @@ export default function PlatformBrowsePage() {
             <p>To fix this:</p>
             <ol>
               <li>Open TikTok app or go to tiktok.com</li>
-              <li>Go to <strong>Settings and Privacy</strong> &gt; <strong>Security and Permissions</strong> &gt; <strong>Manage permissions</strong></li>
-              <li>Find <strong>Cliptopus</strong> and tap <strong>Remove</strong></li>
-              <li>Come back here and click <strong>Reconnect</strong></li>
+              <li>
+                Go to <strong>Settings and Privacy</strong> &gt;{' '}
+                <strong>Security and Permissions</strong> &gt;{' '}
+                <strong>Manage permissions</strong>
+              </li>
+              <li>
+                Find <strong>Cliptopus</strong> and tap <strong>Remove</strong>
+              </li>
+              <li>
+                Come back here and click <strong>Reconnect</strong>
+              </li>
             </ol>
           </div>
         </div>
@@ -374,8 +416,8 @@ export default function PlatformBrowsePage() {
       {!error && videos.length === 0 && (
         <div className={styles.empty}>
           <p>
-            No videos found. Try syncing your {config.displayName} account to pull in your latest
-            uploads.
+            No videos found. Try syncing your {config.displayName} account to
+            pull in your latest uploads.
           </p>
         </div>
       )}
@@ -387,12 +429,16 @@ export default function PlatformBrowsePage() {
               <div key={video.videoId} className={styles.videoCard}>
                 <div className={styles.videoThumb}>
                   <img src={video.thumbnailUrl} alt={video.title} />
-                  <span className={styles.duration}>{formatDuration(video.duration)}</span>
+                  <span className={styles.duration}>
+                    {formatDuration(video.duration)}
+                  </span>
                 </div>
                 <div className={styles.videoInfo}>
                   <div className={styles.videoTitle}>{video.title}</div>
                   <div className={styles.videoMeta}>
-                    <span className={styles.viewCount}>{formatViews(video.viewCount)}</span>
+                    <span className={styles.viewCount}>
+                      {formatViews(video.viewCount)}
+                    </span>
                     <span className={styles.publishDate}>
                       {new Date(video.publishedAt).toLocaleDateString()}
                     </span>
@@ -410,7 +456,9 @@ export default function PlatformBrowsePage() {
                       onClick={() => handleImport(video)}
                       disabled={importingId === video.videoId}
                     >
-                      {importingId === video.videoId ? 'Importing...' : 'Import'}
+                      {importingId === video.videoId
+                        ? 'Importing...'
+                        : 'Import'}
                     </button>
                   )}
                 </div>

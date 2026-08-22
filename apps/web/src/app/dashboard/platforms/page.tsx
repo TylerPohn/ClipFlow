@@ -80,7 +80,9 @@ export default function PlatformsIndexPage() {
   const [accounts, setAccounts] = useState<Record<string, AccountStatus>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [disconnectingPlatform, setDisconnectingPlatform] = useState<string | null>(null);
+  const [disconnectingPlatform, setDisconnectingPlatform] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (authStatus === 'unauthenticated') {
@@ -109,16 +111,27 @@ export default function PlatformsIndexPage() {
 
   async function handleDisconnect(platform: PlatformKey) {
     const config = PLATFORM_CONFIG[platform];
-    if (!confirm(`Are you sure you want to disconnect your ${config?.displayName ?? platform} account?`)) {
+    const dataNotice =
+      platform === 'YOUTUBE'
+        ? ' This revokes Google access and removes synchronized YouTube data from Cliptopus.'
+        : '';
+    if (
+      !confirm(
+        `Are you sure you want to disconnect your ${config?.displayName ?? platform} account?${dataNotice}`,
+      )
+    ) {
       return;
     }
 
     setDisconnectingPlatform(platform);
     setError('');
     try {
-      const res = await fetch(`/api/accounts/${platform.toLowerCase()}/disconnect`, {
-        method: 'POST',
-      });
+      const res = await fetch(
+        `/api/accounts/${platform.toLowerCase()}/disconnect`,
+        {
+          method: 'POST',
+        },
+      );
       if (!res.ok) throw new Error('Failed to disconnect account');
       setAccounts((prev) => ({
         ...prev,
@@ -143,7 +156,9 @@ export default function PlatformsIndexPage() {
     );
   }
 
-  const connectedCount = PLATFORM_ORDER.filter((p) => accounts[p]?.connected).length;
+  const connectedCount = PLATFORM_ORDER.filter(
+    (p) => accounts[p]?.connected,
+  ).length;
 
   return (
     <div className={styles.container}>
@@ -163,7 +178,10 @@ export default function PlatformsIndexPage() {
           const account = accounts[platform];
           const config = PLATFORM_CONFIG[platform];
           const isConnected = account?.connected ?? false;
-          const needsReconnect = isConnected && account?.tokenStatus && account.tokenStatus !== 'valid';
+          const needsReconnect =
+            isConnected &&
+            account?.tokenStatus &&
+            account.tokenStatus !== 'valid';
           const capabilities = getCapabilities(platform);
           const color = PLATFORM_COLORS[platform];
           const tiktokStats =
@@ -179,12 +197,17 @@ export default function PlatformsIndexPage() {
           return (
             <div key={platform} className={styles.card}>
               <div className={styles.cardBody}>
-                <div className={styles.cardTop} style={{ borderColor: isConnected ? color : 'transparent' }}>
+                <div
+                  className={styles.cardTop}
+                  style={{ borderColor: isConnected ? color : 'transparent' }}
+                >
                   <div className={styles.iconWrap} style={{ color }}>
                     {PLATFORM_ICONS[platform]}
                   </div>
                   <div className={styles.platformInfo}>
-                    <span className={styles.platformName}>{config?.displayName ?? platform}</span>
+                    <span className={styles.platformName}>
+                      {config?.displayName ?? platform}
+                    </span>
                     <span
                       className={`${styles.statusBadge} ${
                         needsReconnect
@@ -194,7 +217,11 @@ export default function PlatformsIndexPage() {
                             : styles.statusDisconnected
                       }`}
                     >
-                      {needsReconnect ? 'Reconnect needed' : isConnected ? 'Connected' : 'Not connected'}
+                      {needsReconnect
+                        ? 'Reconnect needed'
+                        : isConnected
+                          ? 'Connected'
+                          : 'Not connected'}
                     </span>
                   </div>
                 </div>
@@ -209,7 +236,10 @@ export default function PlatformsIndexPage() {
                           alt={account.displayName ?? ''}
                         />
                       ) : (
-                        <div className={styles.avatarPlaceholder} style={{ backgroundColor: color + '20', color }}>
+                        <div
+                          className={styles.avatarPlaceholder}
+                          style={{ backgroundColor: color + '20', color }}
+                        >
                           {(config?.displayName ?? platform).charAt(0)}
                         </div>
                       )}
@@ -218,8 +248,17 @@ export default function PlatformsIndexPage() {
                           <span className={styles.displayName}>
                             {account.displayName}
                             {account.isVerified && (
-                              <span className={styles.verifiedBadge} title="Verified">
-                                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                              <span
+                                className={styles.verifiedBadge}
+                                title="Verified"
+                              >
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  width="14"
+                                  height="14"
+                                  fill="currentColor"
+                                  aria-hidden="true"
+                                >
                                   <path d="M12 2l2.39 2.39 3.36-.67.67 3.36L20.81 9.6 19.42 12l1.39 2.39-2.39 2.39-.67 3.36-3.36-.67L12 21.85l-2.39-2.39-3.36.67-.67-3.36L3.19 14.4 4.58 12 3.19 9.6l2.39-2.39.67-3.36 3.36.67L12 2zm-1.2 13.4l5.66-5.66-1.41-1.41-4.24 4.24-2.12-2.12-1.41 1.41 3.52 3.54z" />
                                 </svg>
                               </span>
@@ -227,7 +266,9 @@ export default function PlatformsIndexPage() {
                           </span>
                         )}
                         {account.handle && (
-                          <span className={styles.handle}>{account.handle}</span>
+                          <span className={styles.handle}>
+                            {account.handle}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -238,14 +279,14 @@ export default function PlatformsIndexPage() {
                             <span className={styles.statValue}>
                               {formatCompactNumber(stat.value)}
                             </span>
-                            <span className={styles.statLabel}>{stat.label}</span>
+                            <span className={styles.statLabel}>
+                              {stat.label}
+                            </span>
                           </div>
                         ))}
                       </div>
                     )}
-                    {account.bio && (
-                      <p className={styles.bio}>{account.bio}</p>
-                    )}
+                    {account.bio && <p className={styles.bio}>{account.bio}</p>}
                     {account.profileWebLink && (
                       <a
                         className={styles.profileLink}
@@ -258,13 +299,17 @@ export default function PlatformsIndexPage() {
                     )}
                     {account.lastSyncedAt && (
                       <div className={styles.lastSynced}>
-                        Last synced {new Date(account.lastSyncedAt).toLocaleDateString()}
+                        Last synced{' '}
+                        {new Date(account.lastSyncedAt).toLocaleDateString()}
                       </div>
                     )}
                   </div>
                 ) : (
                   <div className={styles.disconnectedSection}>
-                    <p>Connect your {config?.displayName ?? platform} account to get started.</p>
+                    <p>
+                      Connect your {config?.displayName ?? platform} account to
+                      get started.
+                    </p>
                   </div>
                 )}
 
@@ -300,7 +345,9 @@ export default function PlatformsIndexPage() {
                       onClick={() => handleDisconnect(platform)}
                       disabled={disconnectingPlatform === platform}
                     >
-                      {disconnectingPlatform === platform ? 'Disconnecting...' : 'Disconnect'}
+                      {disconnectingPlatform === platform
+                        ? 'Disconnecting...'
+                        : 'Disconnect'}
                     </button>
                   </>
                 ) : (

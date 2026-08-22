@@ -4,7 +4,10 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import StatusBadge from '@/components/StatusBadge';
-import { PLATFORM_CONFIG, type PlatformConfig } from '@clipflow/shared/src/platforms';
+import {
+  PLATFORM_CONFIG,
+  type PlatformConfig,
+} from '@clipflow/shared/src/platforms';
 import styles from './page.module.css';
 
 interface Post {
@@ -12,6 +15,7 @@ interface Post {
   platform: string;
   status: 'DRAFT' | 'UPLOADING' | 'POSTED' | 'FAILED' | 'SCHEDULED';
   caption?: string;
+  platformPostId?: string;
 }
 
 interface Video {
@@ -50,6 +54,10 @@ interface PlatformFormState {
   commercialContent?: boolean;
   brandOrganic?: boolean;
   brandedContent?: boolean;
+  // YouTube requires an explicit audience designation and confirmation that
+  // the user is authorized to upload compliant content.
+  madeForKids?: '' | 'yes' | 'no';
+  youtubeCommunityGuidelinesAccepted?: boolean;
 }
 
 // Live creator capabilities returned by TikTok's creator_info/query endpoint.
@@ -74,9 +82,11 @@ const TIKTOK_MUSIC_CONFIRMATION_URL =
   'https://www.tiktok.com/legal/page/global/music-usage-confirmation/en';
 const TIKTOK_BRANDED_CONTENT_POLICY_URL =
   'https://www.tiktok.com/legal/page/global/bc-policy/en';
+const YOUTUBE_COMMUNITY_GUIDELINES_URL =
+  'https://www.youtube.com/howyoutubeworks/policies/community-guidelines/';
 
 const PUBLISH_PLATFORMS = Object.entries(PLATFORM_CONFIG).filter(
-  ([, cfg]) => (cfg as PlatformConfig).supportsPost
+  ([, cfg]) => (cfg as PlatformConfig).supportsPost,
 ) as [string, PlatformConfig][];
 
 // Map platform keys to their auth route name (some share auth flows)
@@ -175,8 +185,14 @@ function TrimTimeline({
         onClick={handleTrackClick}
       >
         {/* Dimmed regions outside trim */}
-        <div className={styles.trimDimmed} style={{ left: 0, width: `${pctStart}%` }} />
-        <div className={styles.trimDimmed} style={{ left: `${pctEnd}%`, width: `${100 - pctEnd}%` }} />
+        <div
+          className={styles.trimDimmed}
+          style={{ left: 0, width: `${pctStart}%` }}
+        />
+        <div
+          className={styles.trimDimmed}
+          style={{ left: `${pctEnd}%`, width: `${100 - pctEnd}%` }}
+        />
 
         {/* Selected region */}
         <div
@@ -222,7 +238,10 @@ function extractDefaults(video: Video): { caption: string; tags: string } {
     const desc = video.description.trim();
     const hashtagMatches = desc.match(/#(\w+)/g);
     if (hashtagMatches && hashtagMatches.length >= 2) {
-      tags = hashtagMatches.map((t) => t.replace(/^#/, '')).slice(0, 4).join(', ');
+      tags = hashtagMatches
+        .map((t) => t.replace(/^#/, ''))
+        .slice(0, 4)
+        .join(', ');
     } else {
       const lines = desc.split('\n');
       const lastLine = lines[lines.length - 1].trim();
@@ -264,13 +283,23 @@ export default function VideoDetailPage() {
   const [accountsLoading, setAccountsLoading] = useState(true);
 
   // Per-platform form state and publishing state
-  const [platformForms, setPlatformForms] = useState<Record<string, PlatformFormState>>({});
-  const [scheduledAtForms, setScheduledAtForms] = useState<Record<string, string>>({});
-  const [publishingPlatforms, setPublishingPlatforms] = useState<Set<string>>(new Set());
-  const [publishErrors, setPublishErrors] = useState<Record<string, string>>({});
+  const [platformForms, setPlatformForms] = useState<
+    Record<string, PlatformFormState>
+  >({});
+  const [scheduledAtForms, setScheduledAtForms] = useState<
+    Record<string, string>
+  >({});
+  const [publishingPlatforms, setPublishingPlatforms] = useState<Set<string>>(
+    new Set(),
+  );
+  const [publishErrors, setPublishErrors] = useState<Record<string, string>>(
+    {},
+  );
 
   // TikTok creator_info — fetched live when the user enters Direct Post mode.
-  const [creatorInfo, setCreatorInfo] = useState<TikTokCreatorInfo | null>(null);
+  const [creatorInfo, setCreatorInfo] = useState<TikTokCreatorInfo | null>(
+    null,
+  );
   const [creatorInfoLoading, setCreatorInfoLoading] = useState(false);
   const [creatorInfoError, setCreatorInfoError] = useState('');
 
@@ -303,6 +332,12 @@ export default function VideoDetailPage() {
                   commercialContent: false,
                   brandOrganic: false,
                   brandedContent: false,
+                }
+              : {}),
+            ...(key === 'YOUTUBE' || key === 'YOUTUBE_SHORTS'
+              ? {
+                  madeForKids: '',
+                  youtubeCommunityGuidelinesAccepted: false,
                 }
               : {}),
           };
@@ -361,12 +396,17 @@ export default function VideoDetailPage() {
   // Poll while processing/downloading
   useEffect(() => {
     if (!video) return;
-    const shouldPoll = video.status === 'PROCESSING' || video.status === 'DOWNLOADING';
+    const shouldPoll =
+      video.status === 'PROCESSING' || video.status === 'DOWNLOADING';
 
     if (shouldPoll) {
       pollingRef.current = setInterval(async () => {
         const updated = await fetchVideo();
-        if (updated && updated.status !== 'PROCESSING' && updated.status !== 'DOWNLOADING') {
+        if (
+          updated &&
+          updated.status !== 'PROCESSING' &&
+          updated.status !== 'DOWNLOADING'
+        ) {
           if (pollingRef.current) clearInterval(pollingRef.current);
         }
       }, 3000);
@@ -442,7 +482,7 @@ export default function VideoDetailPage() {
     } catch (err: unknown) {
       setCreatorInfo(null);
       setCreatorInfoError(
-        err instanceof Error ? err.message : 'Failed to load TikTok settings'
+        err instanceof Error ? err.message : 'Failed to load TikTok settings',
       );
     } finally {
       setCreatorInfoLoading(false);
@@ -452,12 +492,17 @@ export default function VideoDetailPage() {
   function updatePlatformForm(
     platform: string,
     field: keyof PlatformFormState,
-    value: string | boolean
+    value: string | boolean,
   ) {
     setPlatformForms((prev) => ({
       ...prev,
       [platform]: {
-        ...(prev[platform] || { title: '', description: '', tags: '', visibility: 'public' }),
+        ...(prev[platform] || {
+          title: '',
+          description: '',
+          tags: '',
+          visibility: 'public',
+        }),
         [field]: value,
       },
     }));
@@ -477,11 +522,33 @@ export default function VideoDetailPage() {
   }
 
   async function handlePublish(platform: string, scheduledAt?: string) {
+    const form = platformForms[platform] || {
+      title: '',
+      description: '',
+      tags: '',
+      visibility: 'public',
+    };
+    const config = PLATFORM_CONFIG[platform];
+    const isYouTube = platform === 'YOUTUBE' || platform === 'YOUTUBE_SHORTS';
+
+    if (isYouTube && !form.madeForKids) {
+      setPublishErrors((prev) => ({
+        ...prev,
+        [platform]: 'Select whether this video is made for kids.',
+      }));
+      return;
+    }
+    if (isYouTube && form.youtubeCommunityGuidelinesAccepted !== true) {
+      setPublishErrors((prev) => ({
+        ...prev,
+        [platform]:
+          'Confirm that the video complies with YouTube policies before publishing.',
+      }));
+      return;
+    }
+
     setPublishingPlatforms((prev) => new Set(prev).add(platform));
     setPublishErrors((prev) => ({ ...prev, [platform]: '' }));
-
-    const form = platformForms[platform] || { title: '', description: '', tags: '', visibility: 'public' };
-    const config = PLATFORM_CONFIG[platform];
 
     try {
       const hashtagList = form.tags
@@ -513,6 +580,12 @@ export default function VideoDetailPage() {
           body.brandOrganic = form.brandOrganic ?? false;
           body.brandedContent = form.brandedContent ?? false;
         }
+      }
+
+      if (isYouTube) {
+        body.madeForKids = form.madeForKids === 'yes';
+        body.youtubeCommunityGuidelinesAccepted =
+          form.youtubeCommunityGuidelinesAccepted === true;
       }
 
       if (scheduledAt) {
@@ -578,7 +651,10 @@ export default function VideoDetailPage() {
 
   return (
     <div className={styles.container}>
-      <button className={`btn-secondary ${styles.backBtn}`} onClick={() => router.push('/dashboard')}>
+      <button
+        className={`btn-secondary ${styles.backBtn}`}
+        onClick={() => router.push('/dashboard')}
+      >
         &larr; Back to Dashboard
       </button>
 
@@ -596,7 +672,8 @@ export default function VideoDetailPage() {
                   className={styles.player}
                   poster={video.thumbnailUrl || undefined}
                   onTimeUpdate={() => {
-                    if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
+                    if (videoRef.current)
+                      setCurrentTime(videoRef.current.currentTime);
                   }}
                 />
                 {video.duration != null && (
@@ -618,7 +695,11 @@ export default function VideoDetailPage() {
               </div>
             ) : video.thumbnailUrl ? (
               <div className={styles.thumbnailWrapper}>
-                <img src={video.thumbnailUrl} alt={video.title} className={styles.thumbnail} />
+                <img
+                  src={video.thumbnailUrl}
+                  alt={video.title}
+                  className={styles.thumbnail}
+                />
                 {streamLoading && (
                   <div className={styles.playerLoading}>Loading player...</div>
                 )}
@@ -634,7 +715,9 @@ export default function VideoDetailPage() {
               )}
               <div className={styles.metaRow}>
                 {video.duration != null && (
-                  <span className={styles.metaItem}>Duration: {formatDuration(video.duration)}</span>
+                  <span className={styles.metaItem}>
+                    Duration: {formatDuration(video.duration)}
+                  </span>
                 )}
                 <span className={styles.metaItem}>
                   Added: {new Date(video.createdAt).toLocaleDateString()}
@@ -644,14 +727,19 @@ export default function VideoDetailPage() {
           </div>
 
           {/* Progress indicator for active states */}
-          {(video.status === 'PROCESSING' || video.status === 'DOWNLOADING') && (
+          {(video.status === 'PROCESSING' ||
+            video.status === 'DOWNLOADING') && (
             <div className={styles.progressCard}>
               <div className={styles.spinner} />
               <div>
                 <p className={styles.progressText}>
-                  {video.status === 'DOWNLOADING' ? 'Downloading video...' : 'Processing video...'}
+                  {video.status === 'DOWNLOADING'
+                    ? 'Downloading video...'
+                    : 'Processing video...'}
                 </p>
-                <p className={styles.progressSubtext}>This may take a minute. The page updates automatically.</p>
+                <p className={styles.progressSubtext}>
+                  This may take a minute. The page updates automatically.
+                </p>
               </div>
             </div>
           )}
@@ -675,7 +763,10 @@ export default function VideoDetailPage() {
           {/* Failed state */}
           {video.status === 'FAILED' && (
             <div className={styles.failedCard}>
-              <p>Processing failed{video.errorMessage ? `: ${video.errorMessage}` : '.'}</p>
+              <p>
+                Processing failed
+                {video.errorMessage ? `: ${video.errorMessage}` : '.'}
+              </p>
               <button className="btn-primary" onClick={handleProcess}>
                 Retry Processing
               </button>
@@ -704,7 +795,11 @@ export default function VideoDetailPage() {
                         title="Set from current playback position"
                         onClick={() => {
                           if (videoRef.current) {
-                            setStartTime(formatDuration(Math.floor(videoRef.current.currentTime)));
+                            setStartTime(
+                              formatDuration(
+                                Math.floor(videoRef.current.currentTime),
+                              ),
+                            );
                           }
                         }}
                       >
@@ -729,7 +824,11 @@ export default function VideoDetailPage() {
                         title="Set from current playback position"
                         onClick={() => {
                           if (videoRef.current) {
-                            setEndTime(formatDuration(Math.floor(videoRef.current.currentTime)));
+                            setEndTime(
+                              formatDuration(
+                                Math.floor(videoRef.current.currentTime),
+                              ),
+                            );
                           }
                         }}
                       >
@@ -795,22 +894,37 @@ export default function VideoDetailPage() {
               const post = getPostForPlatform(platformKey);
               const isPublishing = publishingPlatforms.has(platformKey);
               const publishError = publishErrors[platformKey];
-              const form = platformForms[platformKey] || { title: '', description: '', tags: '', visibility: 'public' };
+              const form = platformForms[platformKey] || {
+                title: '',
+                description: '',
+                tags: '',
+                visibility: 'public',
+              };
               const authRoute = PLATFORM_AUTH_ROUTE[platformKey];
 
               // TikTok Direct Post compliance gating.
-              const isTikTokDirect = platformKey === 'TIKTOK' && form.postMode === 'direct';
+              const isTikTokDirect =
+                platformKey === 'TIKTOK' && form.postMode === 'direct';
               const disclosureOn = form.commercialContent === true;
               const disclosureValid =
-                !disclosureOn || form.brandOrganic === true || form.brandedContent === true;
+                !disclosureOn ||
+                form.brandOrganic === true ||
+                form.brandedContent === true;
               const brandedPrivateConflict =
-                form.brandedContent === true && form.tiktokPrivacy === 'SELF_ONLY';
+                form.brandedContent === true &&
+                form.tiktokPrivacy === 'SELF_ONLY';
               const tiktokDirectInvalid =
                 isTikTokDirect &&
                 (!creatorInfo ||
                   !form.tiktokPrivacy ||
                   !disclosureValid ||
                   brandedPrivateConflict);
+              const isYouTube =
+                platformKey === 'YOUTUBE' || platformKey === 'YOUTUBE_SHORTS';
+              const youtubeUploadInvalid =
+                isYouTube &&
+                (!form.madeForKids ||
+                  form.youtubeCommunityGuidelinesAccepted !== true);
 
               return (
                 <div className={styles.card} key={platformKey}>
@@ -818,7 +932,10 @@ export default function VideoDetailPage() {
 
                   {!isConnected && (
                     <div className={styles.connectPrompt}>
-                      <p>Connect your {config.displayName} account to publish videos.</p>
+                      <p>
+                        Connect your {config.displayName} account to publish
+                        videos.
+                      </p>
                       {authRoute ? (
                         <button
                           className="btn-primary"
@@ -844,7 +961,9 @@ export default function VideoDetailPage() {
                   {isConnected && (
                     <>
                       <div className={styles.connectedBadge}>
-                        {account.displayName || account.handle || `${config.displayName} connected`}
+                        {account.displayName ||
+                          account.handle ||
+                          `${config.displayName} connected`}
                       </div>
 
                       {config.postFields.title && (
@@ -853,19 +972,34 @@ export default function VideoDetailPage() {
                           <input
                             type="text"
                             value={form.title}
-                            onChange={(e) => updatePlatformForm(platformKey, 'title', e.target.value)}
+                            onChange={(e) =>
+                              updatePlatformForm(
+                                platformKey,
+                                'title',
+                                e.target.value,
+                              )
+                            }
                             placeholder={`Title for ${config.displayName}...`}
                           />
                         </div>
                       )}
 
                       {config.postFields.description && (
-                        <div className={styles.field} style={{ marginTop: '0.75rem' }}>
+                        <div
+                          className={styles.field}
+                          style={{ marginTop: '0.75rem' }}
+                        >
                           <label>Description</label>
                           <textarea
                             rows={3}
                             value={form.description}
-                            onChange={(e) => updatePlatformForm(platformKey, 'description', e.target.value)}
+                            onChange={(e) =>
+                              updatePlatformForm(
+                                platformKey,
+                                'description',
+                                e.target.value,
+                              )
+                            }
                             placeholder={`Description for ${config.displayName}...`}
                             className={styles.textarea}
                           />
@@ -873,23 +1007,41 @@ export default function VideoDetailPage() {
                       )}
 
                       {config.postFields.tags && (
-                        <div className={styles.field} style={{ marginTop: '0.75rem' }}>
+                        <div
+                          className={styles.field}
+                          style={{ marginTop: '0.75rem' }}
+                        >
                           <label>Hashtags (comma separated)</label>
                           <input
                             type="text"
                             value={form.tags}
-                            onChange={(e) => updatePlatformForm(platformKey, 'tags', e.target.value)}
+                            onChange={(e) =>
+                              updatePlatformForm(
+                                platformKey,
+                                'tags',
+                                e.target.value,
+                              )
+                            }
                             placeholder="viral, fyp, clips"
                           />
                         </div>
                       )}
 
                       {config.postFields.visibility && !isTikTokDirect && (
-                        <div className={styles.field} style={{ marginTop: '0.75rem' }}>
+                        <div
+                          className={styles.field}
+                          style={{ marginTop: '0.75rem' }}
+                        >
                           <label>Visibility</label>
                           <select
                             value={form.visibility}
-                            onChange={(e) => updatePlatformForm(platformKey, 'visibility', e.target.value)}
+                            onChange={(e) =>
+                              updatePlatformForm(
+                                platformKey,
+                                'visibility',
+                                e.target.value,
+                              )
+                            }
                           >
                             <option value="public">Public</option>
                             <option value="unlisted">Unlisted</option>
@@ -898,8 +1050,67 @@ export default function VideoDetailPage() {
                         </div>
                       )}
 
+                      {isYouTube && (
+                        <div className={styles.youtubeCompliance}>
+                          <div className={styles.field}>
+                            <label>Audience</label>
+                            <select
+                              value={form.madeForKids ?? ''}
+                              onChange={(e) =>
+                                updatePlatformForm(
+                                  platformKey,
+                                  'madeForKids',
+                                  e.target.value,
+                                )
+                              }
+                            >
+                              <option value="" disabled>
+                                Select audience
+                              </option>
+                              <option value="no">
+                                No, it&apos;s not made for kids
+                              </option>
+                              <option value="yes">
+                                Yes, it&apos;s made for kids
+                              </option>
+                            </select>
+                          </div>
+
+                          <label className={styles.checkboxLabel}>
+                            <input
+                              type="checkbox"
+                              checked={
+                                form.youtubeCommunityGuidelinesAccepted === true
+                              }
+                              onChange={(e) =>
+                                updatePlatformForm(
+                                  platformKey,
+                                  'youtubeCommunityGuidelinesAccepted',
+                                  e.target.checked,
+                                )
+                              }
+                            />
+                            <span>
+                              I certify that I have the right to upload this
+                              video and that it complies with YouTube&apos;s{' '}
+                              <a
+                                href={YOUTUBE_COMMUNITY_GUIDELINES_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                Community Guidelines
+                              </a>
+                              .
+                            </span>
+                          </label>
+                        </div>
+                      )}
+
                       {platformKey === 'TIKTOK' && (
-                        <div className={styles.field} style={{ marginTop: '0.75rem' }}>
+                        <div
+                          className={styles.field}
+                          style={{ marginTop: '0.75rem' }}
+                        >
                           <label>Post mode</label>
                           <div className={styles.radioGroup}>
                             <label className={styles.radioLabel}>
@@ -908,9 +1119,17 @@ export default function VideoDetailPage() {
                                 name={`postMode-${platformKey}`}
                                 value="inbox"
                                 checked={(form.postMode ?? 'inbox') === 'inbox'}
-                                onChange={() => updatePlatformForm(platformKey, 'postMode', 'inbox')}
+                                onChange={() =>
+                                  updatePlatformForm(
+                                    platformKey,
+                                    'postMode',
+                                    'inbox',
+                                  )
+                                }
                               />
-                              <span>Save to inbox (finish posting in the TikTok app)</span>
+                              <span>
+                                Save to inbox (finish posting in the TikTok app)
+                              </span>
                             </label>
                             <label className={styles.radioLabel}>
                               <input
@@ -919,8 +1138,13 @@ export default function VideoDetailPage() {
                                 value="direct"
                                 checked={form.postMode === 'direct'}
                                 onChange={() => {
-                                  updatePlatformForm(platformKey, 'postMode', 'direct');
-                                  if (!creatorInfo && !creatorInfoLoading) loadCreatorInfo();
+                                  updatePlatformForm(
+                                    platformKey,
+                                    'postMode',
+                                    'direct',
+                                  );
+                                  if (!creatorInfo && !creatorInfoLoading)
+                                    loadCreatorInfo();
                                 }}
                               />
                               <span>Post directly to my profile</span>
@@ -930,12 +1154,16 @@ export default function VideoDetailPage() {
                           {form.postMode === 'direct' && (
                             <div className={styles.directPostOptions}>
                               {creatorInfoLoading && (
-                                <p className={styles.mutedText}>Loading TikTok settings…</p>
+                                <p className={styles.mutedText}>
+                                  Loading TikTok settings…
+                                </p>
                               )}
 
                               {!creatorInfoLoading && creatorInfoError && (
                                 <div>
-                                  <p className={styles.errorText}>{creatorInfoError}</p>
+                                  <p className={styles.errorText}>
+                                    {creatorInfoError}
+                                  </p>
                                   <button
                                     type="button"
                                     className="btn-secondary"
@@ -949,7 +1177,10 @@ export default function VideoDetailPage() {
                               {!creatorInfoLoading && creatorInfo && (
                                 <>
                                   <p className={styles.mutedText}>
-                                    Posting as <strong>{creatorInfo.creator_nickname}</strong>
+                                    Posting as{' '}
+                                    <strong>
+                                      {creatorInfo.creator_nickname}
+                                    </strong>
                                   </p>
 
                                   {/* Privacy — options come from creator_info, no default selection */}
@@ -958,26 +1189,36 @@ export default function VideoDetailPage() {
                                     <select
                                       value={form.tiktokPrivacy ?? ''}
                                       onChange={(e) =>
-                                        updatePlatformForm(platformKey, 'tiktokPrivacy', e.target.value)
+                                        updatePlatformForm(
+                                          platformKey,
+                                          'tiktokPrivacy',
+                                          e.target.value,
+                                        )
                                       }
                                     >
                                       <option value="" disabled>
                                         Select who can view this video
                                       </option>
-                                      {creatorInfo.privacy_level_options.map((opt) => (
-                                        <option
-                                          key={opt}
-                                          value={opt}
-                                          disabled={opt === 'SELF_ONLY' && form.brandedContent === true}
-                                          title={
-                                            opt === 'SELF_ONLY' && form.brandedContent === true
-                                              ? 'Branded content visibility cannot be set to private.'
-                                              : undefined
-                                          }
-                                        >
-                                          {TIKTOK_PRIVACY_LABELS[opt] ?? opt}
-                                        </option>
-                                      ))}
+                                      {creatorInfo.privacy_level_options.map(
+                                        (opt) => (
+                                          <option
+                                            key={opt}
+                                            value={opt}
+                                            disabled={
+                                              opt === 'SELF_ONLY' &&
+                                              form.brandedContent === true
+                                            }
+                                            title={
+                                              opt === 'SELF_ONLY' &&
+                                              form.brandedContent === true
+                                                ? 'Branded content visibility cannot be set to private.'
+                                                : undefined
+                                            }
+                                          >
+                                            {TIKTOK_PRIVACY_LABELS[opt] ?? opt}
+                                          </option>
+                                        ),
+                                      )}
                                     </select>
                                   </div>
 
@@ -986,9 +1227,16 @@ export default function VideoDetailPage() {
                                     <input
                                       type="checkbox"
                                       disabled={creatorInfo.comment_disabled}
-                                      checked={creatorInfo.comment_disabled || (form.disableComment ?? false)}
+                                      checked={
+                                        creatorInfo.comment_disabled ||
+                                        (form.disableComment ?? false)
+                                      }
                                       onChange={(e) =>
-                                        updatePlatformForm(platformKey, 'disableComment', e.target.checked)
+                                        updatePlatformForm(
+                                          platformKey,
+                                          'disableComment',
+                                          e.target.checked,
+                                        )
                                       }
                                     />
                                     <span>Disable comments</span>
@@ -997,9 +1245,16 @@ export default function VideoDetailPage() {
                                     <input
                                       type="checkbox"
                                       disabled={creatorInfo.duet_disabled}
-                                      checked={creatorInfo.duet_disabled || (form.disableDuet ?? false)}
+                                      checked={
+                                        creatorInfo.duet_disabled ||
+                                        (form.disableDuet ?? false)
+                                      }
                                       onChange={(e) =>
-                                        updatePlatformForm(platformKey, 'disableDuet', e.target.checked)
+                                        updatePlatformForm(
+                                          platformKey,
+                                          'disableDuet',
+                                          e.target.checked,
+                                        )
                                       }
                                     />
                                     <span>Disable duet</span>
@@ -1008,9 +1263,16 @@ export default function VideoDetailPage() {
                                     <input
                                       type="checkbox"
                                       disabled={creatorInfo.stitch_disabled}
-                                      checked={creatorInfo.stitch_disabled || (form.disableStitch ?? false)}
+                                      checked={
+                                        creatorInfo.stitch_disabled ||
+                                        (form.disableStitch ?? false)
+                                      }
                                       onChange={(e) =>
-                                        updatePlatformForm(platformKey, 'disableStitch', e.target.checked)
+                                        updatePlatformForm(
+                                          platformKey,
+                                          'disableStitch',
+                                          e.target.checked,
+                                        )
                                       }
                                     />
                                     <span>Disable stitch</span>
@@ -1021,20 +1283,35 @@ export default function VideoDetailPage() {
                                     <label className={styles.checkboxLabel}>
                                       <input
                                         type="checkbox"
-                                        checked={form.commercialContent === true}
+                                        checked={
+                                          form.commercialContent === true
+                                        }
                                         onChange={(e) => {
                                           const on = e.target.checked;
-                                          updatePlatformForm(platformKey, 'commercialContent', on);
+                                          updatePlatformForm(
+                                            platformKey,
+                                            'commercialContent',
+                                            on,
+                                          );
                                           if (!on) {
-                                            updatePlatformForm(platformKey, 'brandOrganic', false);
-                                            updatePlatformForm(platformKey, 'brandedContent', false);
+                                            updatePlatformForm(
+                                              platformKey,
+                                              'brandOrganic',
+                                              false,
+                                            );
+                                            updatePlatformForm(
+                                              platformKey,
+                                              'brandedContent',
+                                              false,
+                                            );
                                           }
                                         }}
                                       />
                                       <span>Disclose video content</span>
                                     </label>
                                     <p className={styles.mutedText}>
-                                      Turn on to declare that this post promotes a brand, product, or service.
+                                      Turn on to declare that this post promotes
+                                      a brand, product, or service.
                                     </p>
 
                                     {form.commercialContent === true && (
@@ -1044,36 +1321,57 @@ export default function VideoDetailPage() {
                                             type="checkbox"
                                             checked={form.brandOrganic === true}
                                             onChange={(e) =>
-                                              updatePlatformForm(platformKey, 'brandOrganic', e.target.checked)
+                                              updatePlatformForm(
+                                                platformKey,
+                                                'brandOrganic',
+                                                e.target.checked,
+                                              )
                                             }
                                           />
                                           <span>
-                                            <strong>Your brand</strong> — You are promoting yourself or
-                                            your own business. This content will be classified as Brand
-                                            Organic.
+                                            <strong>Your brand</strong> — You
+                                            are promoting yourself or your own
+                                            business. This content will be
+                                            classified as Brand Organic.
                                           </span>
                                         </label>
                                         <label className={styles.checkboxLabel}>
                                           <input
                                             type="checkbox"
-                                            checked={form.brandedContent === true}
+                                            checked={
+                                              form.brandedContent === true
+                                            }
                                             onChange={(e) => {
                                               const checked = e.target.checked;
-                                              updatePlatformForm(platformKey, 'brandedContent', checked);
+                                              updatePlatformForm(
+                                                platformKey,
+                                                'brandedContent',
+                                                checked,
+                                              );
                                               // Branded content can't be private — clear an invalid pick.
-                                              if (checked && form.tiktokPrivacy === 'SELF_ONLY') {
-                                                updatePlatformForm(platformKey, 'tiktokPrivacy', '');
+                                              if (
+                                                checked &&
+                                                form.tiktokPrivacy ===
+                                                  'SELF_ONLY'
+                                              ) {
+                                                updatePlatformForm(
+                                                  platformKey,
+                                                  'tiktokPrivacy',
+                                                  '',
+                                                );
                                               }
                                             }}
                                           />
                                           <span>
-                                            <strong>Branded content</strong> — You are promoting another
-                                            brand or a third party. This content will be classified as
-                                            Branded Content.
+                                            <strong>Branded content</strong> —
+                                            You are promoting another brand or a
+                                            third party. This content will be
+                                            classified as Branded Content.
                                           </span>
                                         </label>
 
-                                        {(form.brandOrganic || form.brandedContent) && (
+                                        {(form.brandOrganic ||
+                                          form.brandedContent) && (
                                           <p className={styles.mutedText}>
                                             {form.brandedContent
                                               ? "Your photo/video will be labeled 'Paid partnership'."
@@ -1083,18 +1381,23 @@ export default function VideoDetailPage() {
 
                                         {disclosureOn && !disclosureValid && (
                                           <p className={styles.errorText}>
-                                            You need to indicate if your content promotes yourself, a
-                                            third party, or both.
+                                            You need to indicate if your content
+                                            promotes yourself, a third party, or
+                                            both.
                                           </p>
                                         )}
 
-                                        {(form.brandOrganic || form.brandedContent) && (
+                                        {(form.brandOrganic ||
+                                          form.brandedContent) && (
                                           <p className={styles.mutedText}>
-                                            By posting, you agree to TikTok&apos;s{' '}
+                                            By posting, you agree to
+                                            TikTok&apos;s{' '}
                                             {form.brandedContent && (
                                               <>
                                                 <a
-                                                  href={TIKTOK_BRANDED_CONTENT_POLICY_URL}
+                                                  href={
+                                                    TIKTOK_BRANDED_CONTENT_POLICY_URL
+                                                  }
                                                   target="_blank"
                                                   rel="noopener noreferrer"
                                                 >
@@ -1104,7 +1407,9 @@ export default function VideoDetailPage() {
                                               </>
                                             )}
                                             <a
-                                              href={TIKTOK_MUSIC_CONFIRMATION_URL}
+                                              href={
+                                                TIKTOK_MUSIC_CONFIRMATION_URL
+                                              }
                                               target="_blank"
                                               rel="noopener noreferrer"
                                             >
@@ -1119,14 +1424,21 @@ export default function VideoDetailPage() {
 
                                   {brandedPrivateConflict && (
                                     <p className={styles.errorText}>
-                                      Branded content visibility cannot be set to private.
+                                      Branded content visibility cannot be set
+                                      to private.
                                     </p>
                                   )}
 
                                   <p className={styles.mutedText}>
                                     Max video length:{' '}
-                                    {Math.floor(creatorInfo.max_video_post_duration_sec / 60)}m{' '}
-                                    {creatorInfo.max_video_post_duration_sec % 60}s
+                                    {Math.floor(
+                                      creatorInfo.max_video_post_duration_sec /
+                                        60,
+                                    )}
+                                    m{' '}
+                                    {creatorInfo.max_video_post_duration_sec %
+                                      60}
+                                    s
                                   </p>
                                 </>
                               )}
@@ -1135,33 +1447,50 @@ export default function VideoDetailPage() {
                         </div>
                       )}
 
-                      <div className={styles.field} style={{ marginTop: '0.75rem' }}>
+                      <div
+                        className={styles.field}
+                        style={{ marginTop: '0.75rem' }}
+                      >
                         <label>Schedule For (optional)</label>
                         <input
                           type="datetime-local"
                           value={scheduledAtForms[platformKey] || ''}
                           onChange={(e) =>
-                            setScheduledAtForms((prev) => ({ ...prev, [platformKey]: e.target.value }))
+                            setScheduledAtForms((prev) => ({
+                              ...prev,
+                              [platformKey]: e.target.value,
+                            }))
                           }
                         />
                       </div>
 
-                      <div className={styles.actions} style={{ marginTop: '1rem' }}>
+                      <div
+                        className={styles.actions}
+                        style={{ marginTop: '1rem' }}
+                      >
                         {scheduledAtForms[platformKey] ? (
                           <button
                             className="btn-primary"
                             style={{ flex: 1 }}
-                            onClick={() => handlePublish(platformKey, scheduledAtForms[platformKey])}
+                            onClick={() =>
+                              handlePublish(
+                                platformKey,
+                                scheduledAtForms[platformKey],
+                              )
+                            }
                             disabled={
                               isPublishing ||
                               video.status !== 'READY' ||
                               post?.status === 'UPLOADING' ||
                               post?.status === 'POSTED' ||
                               post?.status === 'SCHEDULED' ||
-                              tiktokDirectInvalid
+                              tiktokDirectInvalid ||
+                              youtubeUploadInvalid
                             }
                           >
-                            {isPublishing ? 'Scheduling...' : `Schedule for ${config.displayName}`}
+                            {isPublishing
+                              ? 'Scheduling...'
+                              : `Schedule for ${config.displayName}`}
                           </button>
                         ) : (
                           <button
@@ -1173,7 +1502,8 @@ export default function VideoDetailPage() {
                               video.status !== 'READY' ||
                               post?.status === 'UPLOADING' ||
                               post?.status === 'POSTED' ||
-                              tiktokDirectInvalid
+                              tiktokDirectInvalid ||
+                              youtubeUploadInvalid
                             }
                           >
                             {isPublishing
@@ -1189,12 +1519,25 @@ export default function VideoDetailPage() {
                         )}
                       </div>
 
-                      {publishError && <p className={styles.errorText}>{publishError}</p>}
+                      {publishError && (
+                        <p className={styles.errorText}>{publishError}</p>
+                      )}
 
                       {post && (
                         <div className={styles.postStatus}>
                           <span className={styles.postLabel}>Post Status:</span>
                           <StatusBadge status={post.status} />
+                          {post.status === 'POSTED' &&
+                            post.platformPostId &&
+                            isYouTube && (
+                              <a
+                                href={`https://www.youtube.com/watch?v=${post.platformPostId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                View on YouTube
+                              </a>
+                            )}
                         </div>
                       )}
                     </>
