@@ -670,7 +670,7 @@ export default function VideoDetailPage() {
                   controls
                   playsInline
                   className={styles.player}
-                  poster={video.thumbnailUrl || undefined}
+                  poster={video.thumbnailUrl ? `/api/videos/${id}/thumbnail` : undefined}
                   onTimeUpdate={() => {
                     if (videoRef.current)
                       setCurrentTime(videoRef.current.currentTime);
@@ -696,7 +696,7 @@ export default function VideoDetailPage() {
             ) : video.thumbnailUrl ? (
               <div className={styles.thumbnailWrapper}>
                 <img
-                  src={video.thumbnailUrl}
+                  src={`/api/videos/${id}/thumbnail`}
                   alt={video.title}
                   className={styles.thumbnail}
                 />

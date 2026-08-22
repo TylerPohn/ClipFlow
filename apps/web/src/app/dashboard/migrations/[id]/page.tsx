@@ -295,7 +295,7 @@ export default function MigrationDetailPage() {
                 <div key={post.id}>
                   <div className={styles.postItem}>
                     {post.video.thumbnailUrl ? (
-                      <img src={post.video.thumbnailUrl} alt="" className={styles.postThumb} />
+                      <img src={`/api/videos/${post.video.id}/thumbnail`} alt="" className={styles.postThumb} />
                     ) : (
                       <div className={styles.postThumb} />
                     )}

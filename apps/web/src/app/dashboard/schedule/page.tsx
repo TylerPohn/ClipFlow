@@ -204,7 +204,7 @@ export default function SchedulePage() {
                 {post.video.thumbnailUrl && (
                   <div className={styles.thumbnailWrapper}>
                     <img
-                      src={post.video.thumbnailUrl}
+                      src={`/api/videos/${post.video.id}/thumbnail`}
                       alt={post.video.title}
                       className={styles.thumbnail}
                     />

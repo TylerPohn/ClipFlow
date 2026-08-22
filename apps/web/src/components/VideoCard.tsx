@@ -53,7 +53,7 @@ export default function VideoCard({ video }: { video: Video }) {
     <Link href={`/dashboard/videos/${video.id}`} className={styles.card}>
       <div className={styles.thumbnail}>
         {video.thumbnailUrl ? (
-          <img src={video.thumbnailUrl} alt={title} />
+          <img src={`/api/videos/${video.id}/thumbnail`} alt={title} />
         ) : (
           <div className={styles.placeholder}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
