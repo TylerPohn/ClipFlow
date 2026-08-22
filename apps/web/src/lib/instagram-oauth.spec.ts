@@ -5,6 +5,20 @@ import {
 } from './instagram-oauth';
 
 describe('Instagram OAuth URL helpers', () => {
+  function requestWithHeaders(
+    url: string,
+    values: Record<string, string>,
+  ): Request {
+    return {
+      url,
+      headers: {
+        get(name: string) {
+          return values[name.toLowerCase()] ?? null;
+        },
+      },
+    } as Request;
+  }
+
   it.each([
     ['https://cliptopus.com/dashboard', 'https://cliptopus.com'],
     ['https://clipflow.org/dashboard', 'https://clipflow.org'],
@@ -16,6 +30,34 @@ describe('Instagram OAuth URL helpers', () => {
     expect(getInstagramRedirectUri(request)).toBe(
       `${expectedOrigin}/api/auth/instagram/callback`,
     );
+  });
+
+  it.each([
+    ['cliptopus.com', 'https://cliptopus.com'],
+    ['www.cliptopus.com', 'https://www.cliptopus.com'],
+    ['clipflow.org, localhost:3100', 'https://clipflow.org'],
+  ])(
+    'uses trusted proxy host %s instead of the internal request URL',
+    (forwardedHost, expectedOrigin) => {
+      const request = requestWithHeaders('https://localhost:3100/dashboard', {
+        'x-forwarded-host': forwardedHost,
+        'x-forwarded-proto': 'https',
+      });
+
+      expect(getInstagramOrigin(request)).toBe(expectedOrigin);
+      expect(getInstagramRedirectUri(request)).toBe(
+        `${expectedOrigin}/api/auth/instagram/callback`,
+      );
+    },
+  );
+
+  it('ignores an untrusted forwarded host', () => {
+    const request = requestWithHeaders('https://localhost:3100/dashboard', {
+      'x-forwarded-host': 'attacker.example',
+      'x-forwarded-proto': 'https',
+    });
+
+    expect(getInstagramOrigin(request)).toBe('https://localhost:3100');
   });
 
   it.each([
