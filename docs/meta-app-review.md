@@ -66,8 +66,8 @@ straight to publishing without waiting on a download/transcode.
 8. Cliptopus creates a Reels media container and publishes it — this is
    `instagram_business_content_publish` in use. The button shows
    "Publishing..." while the job runs, and **Post Status** changes to
-   **POSTED** when it finishes. The Reel is then live on the connected
-   Instagram account and can be confirmed in the Instagram app.
+   **POSTED** when it finishes. A **View on Instagram** link appears next to
+   the status and opens the published Reel.
 9. To verify revocation, go back to Platforms → Instagram and click
    **Disconnect**. The stored token and account record are deleted.
 

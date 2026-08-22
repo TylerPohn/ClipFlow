@@ -16,6 +16,7 @@ interface Post {
   status: 'DRAFT' | 'UPLOADING' | 'POSTED' | 'FAILED' | 'SCHEDULED';
   caption?: string;
   platformPostId?: string;
+  platformPostUrl?: string | null;
 }
 
 interface Video {
@@ -926,6 +927,15 @@ export default function VideoDetailPage() {
                 (!form.madeForKids ||
                   form.youtubeCommunityGuidelinesAccepted !== true);
 
+              // Instagram media IDs aren't the shortcode used in a permalink,
+              // so the URL is captured at publish time. YouTube's watch URL is
+              // still derived from the video ID.
+              const postUrl =
+                post?.platformPostUrl ??
+                (isYouTube && post?.platformPostId
+                  ? `https://www.youtube.com/watch?v=${post.platformPostId}`
+                  : null);
+
               return (
                 <div className={styles.card} key={platformKey}>
                   <h2 className={styles.sectionTitle}>{config.displayName}</h2>
@@ -1527,17 +1537,15 @@ export default function VideoDetailPage() {
                         <div className={styles.postStatus}>
                           <span className={styles.postLabel}>Post Status:</span>
                           <StatusBadge status={post.status} />
-                          {post.status === 'POSTED' &&
-                            post.platformPostId &&
-                            isYouTube && (
-                              <a
-                                href={`https://www.youtube.com/watch?v=${post.platformPostId}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                View on YouTube
-                              </a>
-                            )}
+                          {post.status === 'POSTED' && postUrl && (
+                            <a
+                              href={postUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              View on {config.displayName}
+                            </a>
+                          )}
                         </div>
                       )}
                     </>

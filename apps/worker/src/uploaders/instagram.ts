@@ -12,7 +12,13 @@ const MAX_STATUS_CHECKS = 5;
 
 interface InstagramApiResponse {
   id?: string;
+  permalink?: string;
   error?: { message?: string };
+}
+
+export interface InstagramPublishResult {
+  id: string;
+  permalink: string | null;
 }
 
 interface InstagramContainerStatus {
@@ -44,7 +50,7 @@ export async function uploadToInstagram(
   videoUrl: string,
   caption: string,
   job: Job<VideoJob>,
-): Promise<string> {
+): Promise<InstagramPublishResult> {
   const account = await prisma.platformAccount.findUnique({
     where: { id: platformAccountId },
   });
@@ -136,5 +142,37 @@ export async function uploadToInstagram(
   }
 
   await job.updateProgress(85);
-  return published.id;
+
+  return {
+    id: published.id,
+    permalink: await fetchPermalink(published.id, accessToken),
+  };
+}
+
+// The Reel is already live at this point, so a failed permalink lookup must not
+// fail the job — we just lose the deep link to the post.
+async function fetchPermalink(
+  mediaId: string,
+  accessToken: string,
+): Promise<string | null> {
+  try {
+    const url = new URL(`${INSTAGRAM_GRAPH_API_BASE}/${mediaId}`);
+    url.search = new URLSearchParams({
+      fields: 'permalink',
+      access_token: accessToken,
+    }).toString();
+
+    const response = await fetch(url);
+    const media = await readInstagramResponse<InstagramApiResponse>(
+      response,
+      'Instagram permalink lookup',
+    );
+    return media.permalink ?? null;
+  } catch (error) {
+    console.error(
+      `Failed to read Instagram permalink for media ${mediaId}:`,
+      error instanceof Error ? error.message : error,
+    );
+    return null;
+  }
 }

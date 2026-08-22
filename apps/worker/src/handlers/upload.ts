@@ -65,6 +65,7 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
 
     // 4. Upload to platform
     let platformPostId: string | undefined;
+    let platformPostUrl: string | null = null;
     const platform = post.platform;
 
     try {
@@ -181,12 +182,14 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
           post.video.processedStorageKey,
           60 * 60,
         );
-        platformPostId = await uploadToInstagram(
+        const instagramPost = await uploadToInstagram(
           account.id,
           videoUrl,
           fullCaption,
           job,
         );
+        platformPostId = instagramPost.id;
+        platformPostUrl = instagramPost.permalink;
       } else {
         throw new Error(`Upload not implemented for platform: ${platform}`);
       }
@@ -213,6 +216,7 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
       where: { id: postId },
       data: {
         platformPostId,
+        platformPostUrl,
         status: PostStatus.POSTED,
         postedAt: new Date(),
       },
