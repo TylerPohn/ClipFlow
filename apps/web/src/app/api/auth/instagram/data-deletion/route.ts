@@ -1,21 +1,46 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { deleteInstagramUserData } from '@/lib/instagram-data-deletion';
+import {
+  getInstagramAppSecret,
+  parseInstagramSignedRequest,
+} from '@/lib/instagram-signed-request';
 
 export async function POST(request: Request) {
-  // Meta sends a signed_request when a user requests data deletion
-  // We parse it to get the user ID, but since we don't store significant
-  // user data beyond OAuth tokens, we just acknowledge the request.
-
   const formData = await request.formData();
-  const signedRequest = formData.get('signed_request') as string | null;
+  const signedRequest = formData.get('signed_request');
 
-  if (!signedRequest) {
-    return NextResponse.json({ error: 'Missing signed_request' }, { status: 400 });
+  if (typeof signedRequest !== 'string') {
+    return NextResponse.json(
+      { error: 'Missing signed_request' },
+      { status: 400 },
+    );
   }
+
+  const appSecret = getInstagramAppSecret();
+  if (!appSecret) {
+    return NextResponse.json(
+      { error: 'Instagram not configured' },
+      { status: 500 },
+    );
+  }
+
+  const payload = parseInstagramSignedRequest(signedRequest, appSecret);
+  if (!payload?.user_id) {
+    return NextResponse.json(
+      { error: 'Invalid signed_request' },
+      { status: 400 },
+    );
+  }
+
+  await deleteInstagramUserData(String(payload.user_id));
 
   // Generate a confirmation code for tracking
   const confirmationCode = crypto.randomUUID();
-  const statusUrl = `${process.env.NEXTAUTH_URL}/api/auth/instagram/data-deletion/status?code=${confirmationCode}`;
+  const statusUrl = new URL(
+    `/api/auth/instagram/data-deletion?code=${confirmationCode}`,
+    request.url,
+  ).toString();
 
   // Meta expects this exact response format
   return NextResponse.json({
@@ -30,10 +55,12 @@ export async function GET(request: Request) {
   const code = searchParams.get('code');
 
   if (!code) {
-    return NextResponse.json({ error: 'Missing confirmation code' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Missing confirmation code' },
+      { status: 400 },
+    );
   }
 
-  // Since we don't store significant user data, deletion is always complete
   return NextResponse.json({
     confirmation_code: code,
     status: 'complete',

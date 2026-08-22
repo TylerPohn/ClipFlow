@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth';
+import {
+  getInstagramRedirectUri,
+  sanitizeInstagramReturnTo,
+} from '@/lib/instagram-oauth';
 import * as crypto from 'crypto';
 
 export async function GET(request: Request) {
@@ -10,14 +14,17 @@ export async function GET(request: Request) {
 
   const clientId = process.env.INSTAGRAM_CLIENT_ID;
   if (!clientId) {
-    return NextResponse.json({ error: 'Instagram not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Instagram not configured' },
+      { status: 500 },
+    );
   }
 
   const { searchParams } = new URL(request.url);
-  const returnTo = searchParams.get('returnTo') ?? '/dashboard';
+  const returnTo = sanitizeInstagramReturnTo(searchParams.get('returnTo'));
 
   const state = crypto.randomBytes(16).toString('hex');
-  const redirectUri = `${process.env.NEXTAUTH_URL}/api/auth/instagram/callback`;
+  const redirectUri = getInstagramRedirectUri(request);
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -30,7 +37,7 @@ export async function GET(request: Request) {
   });
 
   const response = NextResponse.redirect(
-    `https://www.instagram.com/oauth/authorize?${params.toString()}`
+    `https://www.instagram.com/oauth/authorize?${params.toString()}`,
   );
   response.cookies.set('instagram_oauth_state', state, {
     httpOnly: true,

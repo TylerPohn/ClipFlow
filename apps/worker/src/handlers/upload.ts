@@ -8,6 +8,7 @@ import {
   PostStatus,
   S3_BUCKETS,
   downloadFile,
+  getSignedUrl,
 } from '@clipflow/shared';
 import { prisma } from '@clipflow/db';
 import {
@@ -16,6 +17,7 @@ import {
 } from '@clipflow/video-processing';
 import { uploadToX } from '../uploaders/x';
 import { uploadToYouTube } from '../uploaders/youtube';
+import { uploadToInstagram } from '../uploaders/instagram';
 import { ensureFreshTikTokToken } from '../lib/tiktok-token';
 
 export async function handleUpload(job: Job<VideoJob>): Promise<void> {
@@ -171,6 +173,18 @@ export async function handleUpload(job: Job<VideoJob>): Promise<void> {
             tags: hashtags,
             madeForKids: job.data.options?.madeForKids === true,
           },
+          job,
+        );
+      } else if (platform === 'INSTAGRAM') {
+        const videoUrl = await getSignedUrl(
+          S3_BUCKETS.PROCESSED,
+          post.video.processedStorageKey,
+          60 * 60,
+        );
+        platformPostId = await uploadToInstagram(
+          account.id,
+          videoUrl,
+          fullCaption,
           job,
         );
       } else {

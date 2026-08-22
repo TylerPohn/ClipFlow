@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth';
 import { prisma } from '@clipflow/db';
 import { cookies } from 'next/headers';
+import {
+  getInstagramOrigin,
+  getInstagramRedirectUri,
+  sanitizeInstagramReturnTo,
+} from '@/lib/instagram-oauth';
 
 export async function GET(request: Request) {
   const session = await getServerSession();
@@ -17,7 +22,10 @@ export async function GET(request: Request) {
 
   const cookieStore = await cookies();
   const savedState = cookieStore.get('instagram_oauth_state')?.value;
-  const returnTo = cookieStore.get('instagram_return_to')?.value ?? '/dashboard';
+  const returnTo = sanitizeInstagramReturnTo(
+    cookieStore.get('instagram_return_to')?.value ?? null,
+  );
+  const origin = getInstagramOrigin(request);
 
   // Clean up cookies
   cookieStore.delete('instagram_oauth_state');
@@ -25,19 +33,19 @@ export async function GET(request: Request) {
 
   if (error) {
     return NextResponse.redirect(
-      new URL(`${returnTo}?instagram_error=${error}`, process.env.NEXTAUTH_URL)
+      new URL(`${returnTo}?instagram_error=${error}`, origin),
     );
   }
 
   if (!code || !state || state !== savedState) {
     return NextResponse.redirect(
-      new URL(`${returnTo}?instagram_error=invalid_state`, process.env.NEXTAUTH_URL)
+      new URL(`${returnTo}?instagram_error=invalid_state`, origin),
     );
   }
 
   const clientId = process.env.INSTAGRAM_CLIENT_ID!;
   const clientSecret = process.env.INSTAGRAM_CLIENT_SECRET!;
-  const redirectUri = `${process.env.NEXTAUTH_URL}/api/auth/instagram/callback`;
+  const redirectUri = getInstagramRedirectUri(request);
 
   // 1. Exchange code for short-lived token via Instagram API
   const tokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
@@ -56,7 +64,7 @@ export async function GET(request: Request) {
   if (!tokenData.access_token) {
     console.error('Instagram token exchange failed:', tokenData);
     return NextResponse.redirect(
-      new URL(`${returnTo}?instagram_error=token_failed`, process.env.NEXTAUTH_URL)
+      new URL(`${returnTo}?instagram_error=token_failed`, origin),
     );
   }
 
@@ -85,7 +93,7 @@ export async function GET(request: Request) {
   if (!igUserId) {
     console.error('Could not get Instagram user ID:', profileData);
     return NextResponse.redirect(
-      new URL(`${returnTo}?instagram_error=no_ig_account`, process.env.NEXTAUTH_URL)
+      new URL(`${returnTo}?instagram_error=no_ig_account`, origin),
     );
   }
 
@@ -145,5 +153,5 @@ export async function GET(request: Request) {
     },
   });
 
-  return NextResponse.redirect(new URL(returnTo, process.env.NEXTAUTH_URL));
+  return NextResponse.redirect(new URL(returnTo, origin));
 }

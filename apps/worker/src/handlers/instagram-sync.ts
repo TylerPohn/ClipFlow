@@ -1,51 +1,10 @@
 import { Job } from 'bullmq';
 import type { VideoJob } from '@clipflow/shared';
 import { prisma } from '@clipflow/db';
-
-const GRAPH_API_BASE = 'https://graph.instagram.com/v21.0';
-
-async function refreshAccessToken(platformAccountId: string): Promise<string> {
-  const account = await prisma.platformAccount.findUnique({
-    where: { id: platformAccountId },
-  });
-  if (!account?.accessToken) {
-    throw new Error('Missing Instagram access token');
-  }
-
-  const now = new Date();
-  const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
-
-  if (
-    account.tokenExpiresAt &&
-    account.tokenExpiresAt < fiveMinutesFromNow &&
-    account.refreshToken
-  ) {
-    const res = await fetch(
-      `${GRAPH_API_BASE}/refresh_access_token?` +
-        new URLSearchParams({
-          grant_type: 'ig_refresh_token',
-          access_token: account.accessToken,
-        })
-    );
-
-    if (!res.ok) throw new Error(`Instagram token refresh failed: ${res.status}`);
-    const data = (await res.json()) as { access_token: string; expires_in?: number };
-
-    await prisma.platformAccount.update({
-      where: { id: platformAccountId },
-      data: {
-        accessToken: data.access_token,
-        tokenExpiresAt: data.expires_in
-          ? new Date(Date.now() + data.expires_in * 1000)
-          : undefined,
-      },
-    });
-
-    return data.access_token;
-  }
-
-  return account.accessToken;
-}
+import {
+  ensureFreshInstagramToken,
+  INSTAGRAM_GRAPH_API_BASE,
+} from '../lib/instagram-token';
 
 interface IGMedia {
   id: string;
@@ -68,13 +27,13 @@ interface IGInsight {
 
 async function fetchMediaInsights(
   mediaId: string,
-  accessToken: string
+  accessToken: string,
 ): Promise<{ views: number; likes: number; comments: number; shares: number }> {
   const stats = { views: 0, likes: 0, comments: 0, shares: 0 };
 
   try {
     const res = await fetch(
-      `${GRAPH_API_BASE}/${mediaId}/insights?metric=plays,likes,comments,shares&access_token=${accessToken}`
+      `${INSTAGRAM_GRAPH_API_BASE}/${mediaId}/insights?metric=plays,likes,comments,shares&access_token=${accessToken}`,
     );
 
     if (!res.ok) {
@@ -115,23 +74,28 @@ export async function handleInstagramSync(job: Job<VideoJob>) {
   });
 
   const igUserId = account.platformUserId;
-  const accessToken = await refreshAccessToken(account.id);
+  const accessToken = await ensureFreshInstagramToken(account.id);
 
   await job.updateProgress(10);
 
   // Paginate through all media
   const allMedia: IGMedia[] = [];
   let url: string | null =
-    `${GRAPH_API_BASE}/${igUserId}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp&limit=50&access_token=${accessToken}`;
+    `${INSTAGRAM_GRAPH_API_BASE}/${igUserId}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp&limit=50&access_token=${accessToken}`;
 
   while (url) {
     const res = await fetch(url);
     if (!res.ok) {
       const errorBody = await res.text();
       console.error(`Instagram media fetch failed: ${res.status}`, errorBody);
-      throw new Error(`Instagram media fetch failed: ${res.status} - ${errorBody}`);
+      throw new Error(
+        `Instagram media fetch failed: ${res.status} - ${errorBody}`,
+      );
     }
-    const data = (await res.json()) as { data?: IGMedia[]; paging?: { next?: string } };
+    const data = (await res.json()) as {
+      data?: IGMedia[];
+      paging?: { next?: string };
+    };
     allMedia.push(...(data.data ?? []));
     url = data.paging?.next ?? null;
   }
@@ -140,7 +104,7 @@ export async function handleInstagramSync(job: Job<VideoJob>) {
 
   // Filter for video content only
   const videos = allMedia.filter(
-    (m) => m.media_type === 'VIDEO' || m.media_type === 'REEL'
+    (m) => m.media_type === 'VIDEO' || m.media_type === 'REEL',
   );
 
   if (videos.length === 0) {
@@ -191,7 +155,8 @@ export async function handleInstagramSync(job: Job<VideoJob>) {
         data: {
           title: title ?? existing.title,
           description: media.caption ?? existing.description,
-          thumbnailUrl: media.thumbnail_url ?? media.media_url ?? existing.thumbnailUrl,
+          thumbnailUrl:
+            media.thumbnail_url ?? media.media_url ?? existing.thumbnailUrl,
           platform: 'INSTAGRAM',
           platformMediaId: media.id,
           viewCount: stats.views,
@@ -215,6 +180,6 @@ export async function handleInstagramSync(job: Job<VideoJob>) {
 
   await job.updateProgress(100);
   console.log(
-    `Instagram sync complete for ${igUserId}: ${synced} new videos, ${videos.length - synced} updated`
+    `Instagram sync complete for ${igUserId}: ${synced} new videos, ${videos.length - synced} updated`,
   );
 }
