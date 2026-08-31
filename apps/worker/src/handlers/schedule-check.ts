@@ -124,11 +124,18 @@ export async function handleScheduleCheck(job: Job<VideoJob>): Promise<void> {
         data: { status: PostStatus.UPLOADING },
       });
 
+      // Replay the publish options captured at scheduling time. Migration
+      // posts have no per-post settings; fall back to the migration defaults.
+      const storedSettings = (post.settings ??
+        post.migration?.defaultSettings ??
+        {}) as Record<string, unknown>;
+
       await queue.add(JobType.UPLOAD, {
         type: JobType.UPLOAD,
         videoId: post.video.id,
         userId: post.video.userId,
         options: {
+          ...storedSettings,
           postId: post.id,
           platform: post.platform,
           caption: post.caption,

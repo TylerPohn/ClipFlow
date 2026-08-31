@@ -178,6 +178,9 @@ model Post {
   caption         String?    @db.Text
   hashtags        String[]
   status          PostStatus @default(DRAFT)
+  // Platform-specific publish options (postMode, privacyLevel, visibility, …)
+  // captured at scheduling time so the scheduler can replay them at post time.
+  settings        Json?
   scheduledAt     DateTime?
   postedAt        DateTime?
   createdAt       DateTime   @default(now())

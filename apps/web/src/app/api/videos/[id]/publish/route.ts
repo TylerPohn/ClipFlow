@@ -122,6 +122,23 @@ export async function POST(
     }
   }
 
+  // Platform-specific publish options. Persisted on the Post so the scheduler
+  // can replay them when a SCHEDULED post comes due (caption/hashtags live in
+  // their own columns). JSON-serialization drops undefined fields.
+  const settings = {
+    title: body.title,
+    description: body.description,
+    visibility: body.visibility,
+    madeForKids: body.madeForKids,
+    postMode: body.postMode ?? 'inbox',
+    disableComment: body.disableComment,
+    disableDuet: body.disableDuet,
+    disableStitch: body.disableStitch,
+    privacyLevel: body.privacyLevel,
+    brandOrganic: body.brandOrganic,
+    brandedContent: body.brandedContent,
+  };
+
   // Reuse existing FAILED post for retries instead of creating duplicates
   const existingPost = await prisma.post.findFirst({
     where: {
@@ -139,6 +156,7 @@ export async function POST(
           hashtags: body.hashtags ?? [],
           status: isScheduled ? PostStatus.SCHEDULED : PostStatus.UPLOADING,
           scheduledAt,
+          settings,
         },
       })
     : await prisma.post.create({
@@ -149,6 +167,7 @@ export async function POST(
           hashtags: body.hashtags ?? [],
           status: isScheduled ? PostStatus.SCHEDULED : PostStatus.UPLOADING,
           scheduledAt,
+          settings,
         },
       });
 
@@ -162,18 +181,8 @@ export async function POST(
         postId: post.id,
         platform: body.platform,
         caption: body.caption,
-        title: body.title,
-        description: body.description,
         hashtags: body.hashtags,
-        visibility: body.visibility,
-        madeForKids: body.madeForKids,
-        postMode: body.postMode ?? 'inbox',
-        disableComment: body.disableComment,
-        disableDuet: body.disableDuet,
-        disableStitch: body.disableStitch,
-        privacyLevel: body.privacyLevel,
-        brandOrganic: body.brandOrganic,
-        brandedContent: body.brandedContent,
+        ...settings,
       },
     });
   }
