@@ -914,12 +914,23 @@ export default function VideoDetailPage() {
               const brandedPrivateConflict =
                 form.brandedContent === true &&
                 form.tiktokPrivacy === 'SELF_ONLY';
+              // TikTok rejects Direct Posts longer than the creator's
+              // allowance, so gate on the trimmed length we actually upload
+              // rather than the source video's full duration.
+              const tiktokClipSeconds =
+                (parseMMSS(endTime) ?? video.duration ?? 0) -
+                (parseMMSS(startTime) ?? 0);
+              const tiktokTooLong =
+                isTikTokDirect &&
+                creatorInfo != null &&
+                tiktokClipSeconds > creatorInfo.max_video_post_duration_sec;
               const tiktokDirectInvalid =
                 isTikTokDirect &&
                 (!creatorInfo ||
                   !form.tiktokPrivacy ||
                   !disclosureValid ||
-                  brandedPrivateConflict);
+                  brandedPrivateConflict ||
+                  tiktokTooLong);
               const isYouTube =
                 platformKey === 'YOUTUBE' || platformKey === 'YOUTUBE_SHORTS';
               const youtubeUploadInvalid =
@@ -1396,38 +1407,6 @@ export default function VideoDetailPage() {
                                             both.
                                           </p>
                                         )}
-
-                                        {(form.brandOrganic ||
-                                          form.brandedContent) && (
-                                          <p className={styles.mutedText}>
-                                            By posting, you agree to
-                                            TikTok&apos;s{' '}
-                                            {form.brandedContent && (
-                                              <>
-                                                <a
-                                                  href={
-                                                    TIKTOK_BRANDED_CONTENT_POLICY_URL
-                                                  }
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                >
-                                                  Branded Content Policy
-                                                </a>{' '}
-                                                and{' '}
-                                              </>
-                                            )}
-                                            <a
-                                              href={
-                                                TIKTOK_MUSIC_CONFIRMATION_URL
-                                              }
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                            >
-                                              Music Usage Confirmation
-                                            </a>
-                                            .
-                                          </p>
-                                        )}
                                       </div>
                                     )}
                                   </div>
@@ -1438,6 +1417,37 @@ export default function VideoDetailPage() {
                                       to private.
                                     </p>
                                   )}
+
+                                  {/* TikTok requires the Music Usage
+                                      Confirmation on every Direct Post, not
+                                      only commercial content. The Branded
+                                      Content Policy is added when the post is
+                                      declared as branded content. */}
+                                  <p className={styles.mutedText}>
+                                    By posting, you agree to TikTok&apos;s{' '}
+                                    {form.brandedContent && (
+                                      <>
+                                        <a
+                                          href={
+                                            TIKTOK_BRANDED_CONTENT_POLICY_URL
+                                          }
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                        >
+                                          Branded Content Policy
+                                        </a>{' '}
+                                        and{' '}
+                                      </>
+                                    )}
+                                    <a
+                                      href={TIKTOK_MUSIC_CONFIRMATION_URL}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      Music Usage Confirmation
+                                    </a>
+                                    .
+                                  </p>
 
                                   <p className={styles.mutedText}>
                                     Max video length:{' '}
@@ -1450,6 +1460,15 @@ export default function VideoDetailPage() {
                                       60}
                                     s
                                   </p>
+
+                                  {tiktokTooLong && (
+                                    <p className={styles.errorText}>
+                                      This clip runs{' '}
+                                      {formatDuration(tiktokClipSeconds)}, which
+                                      is longer than this account can post to
+                                      TikTok. Trim it before posting.
+                                    </p>
+                                  )}
                                 </>
                               )}
                             </div>
